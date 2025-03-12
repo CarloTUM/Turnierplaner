@@ -5,30 +5,34 @@ import java.util.List;
 
 public class Runde {
     private int rundenNummer;
-    private List<Match> spiele;
+    private List<Match> matches;
 
     public Runde(int rundenNummer) {
         this.rundenNummer = rundenNummer;
-        this.spiele = new ArrayList<>();
+        this.matches = new ArrayList<>();
     }
 
     public int getRundenNummer() {
         return rundenNummer;
     }
 
+    public List<Match> getMatches() {
+        return matches;
+    }
+
+    // Getter für Spiele (Alias für Matches)
     public List<Match> getSpiele() {
-        return spiele;
+        return matches;
     }
 
     public void addMatch(Match match) {
-        this.spiele.add(match);
+        matches.add(match);
     }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Runde ").append(rundenNummer).append(":\n");
-        for (Match match : spiele) {
+        StringBuilder sb = new StringBuilder("Runde " + rundenNummer + ":\n");
+        for (Match match : matches) {
             sb.append(match.toString()).append("\n");
         }
         return sb.toString();

@@ -35,12 +35,13 @@ public class App extends Application {
 
     // Score pro Spieler (für die Rangliste)
     private Map<Spieler, Integer> scoreboardMap = new HashMap<>();
-    // Gewinner pro Match (optional, falls du die Funktion nutzen willst)
+    // Gewinner pro Match (optional)
     private Map<Match, Team> matchWinnerMap = new HashMap<>();
 
     // UI-Felder
     private TextField nameField;
     private ComboBox<String> geschlechtComboBox;
+    private TextField spielstaerkeField; // NEU: Eingabe der Spielstärke
     private TextField plaetzeField;
     private TextField rundenField;
     private TextField startzeitField;
@@ -110,6 +111,11 @@ public class App extends Application {
         geschlechtComboBox.setPromptText("Geschlecht");
         geschlechtComboBox.getStyleClass().add("combo-box");
 
+        // NEU: TextField für Spielstärke
+        spielstaerkeField = new TextField();
+        spielstaerkeField.setPromptText("Spielstärke (1-10)");
+        spielstaerkeField.getStyleClass().add("text-field");
+
         Button btnAdd = new Button("Hinzufügen");
         btnAdd.getStyleClass().add("button");
         btnAdd.setOnAction(e -> addSpieler());
@@ -133,7 +139,7 @@ public class App extends Application {
         darkModeToggle.setTooltip(new Tooltip("Umschalten zwischen Light und Dark Mode"));
 
         sidebar.getChildren().addAll(
-                lblAdd, nameField, geschlechtComboBox, btnAdd,
+                lblAdd, nameField, geschlechtComboBox, spielstaerkeField, btnAdd,
                 new Separator(), lblListe, scrollSpieler,
                 new Separator(), darkModeToggle
         );
@@ -205,7 +211,6 @@ public class App extends Application {
         spielplanGrid.setGridLinesVisible(true); // Debug: Zeige Gitternetz
 
         ScrollPane planScroll = new ScrollPane(spielplanGrid);
-        // (NEU) Größeres Standardfenster
         planScroll.setFitToWidth(false);
         planScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         planScroll.setPrefHeight(600);
@@ -260,8 +265,7 @@ public class App extends Application {
 
         root.setBottom(bottomBox);
 
-        // Szene
-        Scene scene = new Scene(root, 1300, 800); // größerer Start
+        Scene scene = new Scene(root, 1300, 800);
         String lightCssPath = "/com/example/roundrobintunier/styles.css";
         URL lightCssUrl = getClass().getResource(lightCssPath);
         if (lightCssUrl != null) {
@@ -279,6 +283,7 @@ public class App extends Application {
     private void addSpieler() {
         String name = nameField.getText().trim();
         String geschlecht = geschlechtComboBox.getValue();
+        String spielstaerkeStr = spielstaerkeField.getText().trim();
 
         boolean valid = true;
         if (name.isEmpty()) {
@@ -301,8 +306,23 @@ public class App extends Application {
             geschlechtComboBox.getStyleClass().removeAll("error");
         }
 
+        int spielstaerke = 0;
+        try {
+            spielstaerke = Integer.parseInt(spielstaerkeStr);
+            if (spielstaerke < 1 || spielstaerke > 10) {
+                throw new NumberFormatException();
+            }
+            spielstaerkeField.getStyleClass().removeAll("error");
+        } catch (NumberFormatException e) {
+            if (!spielstaerkeField.getStyleClass().contains("error")) {
+                spielstaerkeField.getStyleClass().add("error");
+            }
+            shakeNode(spielstaerkeField);
+            valid = false;
+        }
+
         if (!valid) {
-            showErrorAlert("Bitte Name und Geschlecht eingeben!");
+            showErrorAlert("Bitte alle Felder korrekt ausfüllen!\nSpielstärke: Zahl zwischen 1 und 10");
             return;
         }
 
@@ -315,11 +335,12 @@ public class App extends Application {
             }
         }
 
-        Spieler neu = new Spieler(name, geschlecht);
+        Spieler neu = new Spieler(name, geschlecht, spielstaerke);
         spielerListe.add(neu);
 
         nameField.clear();
         geschlechtComboBox.setValue(null);
+        spielstaerkeField.clear();
 
         aktualisiereSpielerListe();
         updateStatus("Spieler hinzugefügt: " + name, "success-label");
@@ -338,13 +359,13 @@ public class App extends Application {
         row.getStyleClass().add("spieler-item");
         row.setAlignment(Pos.CENTER_LEFT);
 
-        Label lbl = new Label(sp.getName() + " (" + sp.getGeschlecht() + ")");
+        // Anzeige: Name, Geschlecht und Spielstärke
+        Label lbl = new Label(sp.getName() + " (" + sp.getGeschlecht() + ", Stärke: " + sp.getSpielstaerke() + ")");
         lbl.getStyleClass().add("spieler-item-label");
 
         Button btnRemove = new Button("Entf.");
         btnRemove.getStyleClass().add("remove-button");
         btnRemove.setTooltip(new Tooltip("Spieler entfernen"));
-
         btnRemove.setOnAction(e -> {
             spielerListe.remove(sp);
             aktualisiereSpielerListe();
@@ -522,28 +543,23 @@ public class App extends Application {
         for (int col = 0; col < anzahlPlaetze + 2; col++) {
             ColumnConstraints cc = new ColumnConstraints();
             if (col == 0) {
-                // Zeitspalte
                 cc.setMinWidth(80);
                 cc.setPrefWidth(80);
             } else if (col <= anzahlPlaetze) {
-                // Matchspalten (passen zu den ~320 px aus CSS)
                 cc.setMinWidth(340);
                 cc.setPrefWidth(340);
             } else {
-                // Pausenspalte (passen zu den ~160 px aus CSS, mit Reserve)
                 cc.setMinWidth(180);
                 cc.setPrefWidth(180);
             }
             spielplanGrid.getColumnConstraints().add(cc);
         }
 
-        // Kopfzeile
         Label timeHeader = new Label("Zeit");
         timeHeader.getStyleClass().add("label-time");
         timeHeader.setTooltip(new Tooltip("Startzeit jeder Runde"));
         spielplanGrid.add(timeHeader, 0, 0);
 
-        // Platz i
         for (int p = 1; p <= anzahlPlaetze; p++) {
             Label platzLabel = new Label("Platz " + p);
             platzLabel.getStyleClass().add("label-platz");
@@ -551,7 +567,6 @@ public class App extends Application {
             spielplanGrid.add(platzLabel, p, 0);
         }
 
-        // Spalte für "Pause"
         Label pauseColHeader = new Label("Pausierende\nSpieler");
         pauseColHeader.getStyleClass().add("label-platz");
         pauseColHeader.setTooltip(new Tooltip("Spieler, die diese Runde nicht spielen"));
@@ -574,12 +589,10 @@ public class App extends Application {
             Runde runde = turnier.getRunden().get(rundeNummer - 1);
             List<Match> spiele = runde.getSpiele();
 
-            // Matches
             for (int platz = 1; platz <= anzahlPlaetze; platz++) {
                 int matchIndex = platz - 1;
                 if (matchIndex < spiele.size()) {
                     Match m = spiele.get(matchIndex);
-
                     VBox matchCard = new VBox(8);
                     matchCard.getStyleClass().add("match-card");
 
@@ -588,21 +601,18 @@ public class App extends Application {
                     lblMatch.setWrapText(true);
                     lblMatch.setTooltip(new Tooltip(m.toString()));
 
-                    // Score-Eingabefelder
                     HBox scoreBox = new HBox(5);
                     TextField tfTeam1 = new TextField();
                     tfTeam1.setPromptText("Team1");
                     TextField tfTeam2 = new TextField();
                     tfTeam2.setPromptText("Team2");
 
-                    // Wenn schon Ergebnis existiert
                     MatchResult oldRes = m.getResult();
                     if (oldRes != null) {
                         tfTeam1.setText(String.valueOf(oldRes.getTeam1Score()));
                         tfTeam2.setText(String.valueOf(oldRes.getTeam2Score()));
                     }
 
-                    // Listener -> updateMatchResult
                     tfTeam1.textProperty().addListener((obs, oldVal, newVal) -> {
                         updateMatchResult(m, tfTeam1, tfTeam2);
                     });
@@ -621,7 +631,6 @@ public class App extends Application {
                 }
             }
 
-            // Pausierende Spieler
             List<Spieler> pausierendeSpieler = pausenProRunde.get(rundeNummer - 1);
             StringBuilder sb = new StringBuilder("Pause:\n");
             for (Spieler sp : pausierendeSpieler) {
@@ -645,26 +654,18 @@ public class App extends Application {
         }
     }
 
-    /**
-     * Neues Punktesystem: Wir berücksichtigen alte Ergebnisse, subtrahieren sie vom Scoreboard,
-     * und addieren danach den neuen Score.
-     */
     private void updateMatchResult(Match match, TextField tfTeam1, TextField tfTeam2) {
-        // Neue Eingaben (nicht parsebar => 0)
         int newScore1 = parseScore(tfTeam1.getText());
         int newScore2 = parseScore(tfTeam2.getText());
 
-        // Altes Ergebnis => abziehen
         MatchResult oldResult = match.getResult();
         if (oldResult != null) {
-            // Team1
             scoreboardMap.put(
                     match.getTeam1().getSpieler1(),
                     scoreboardMap.getOrDefault(match.getTeam1().getSpieler1(), 0) - oldResult.getTeam1Score());
             scoreboardMap.put(
                     match.getTeam1().getSpieler2(),
                     scoreboardMap.getOrDefault(match.getTeam1().getSpieler2(), 0) - oldResult.getTeam1Score());
-            // Team2
             scoreboardMap.put(
                     match.getTeam2().getSpieler1(),
                     scoreboardMap.getOrDefault(match.getTeam2().getSpieler1(), 0) - oldResult.getTeam2Score());
@@ -673,11 +674,9 @@ public class App extends Application {
                     scoreboardMap.getOrDefault(match.getTeam2().getSpieler2(), 0) - oldResult.getTeam2Score());
         }
 
-        // Neues Ergebnis speichern
         MatchResult result = new MatchResult(newScore1, newScore2);
         match.setResult(result);
 
-        // Neue Punkte addieren
         scoreboardMap.put(
                 match.getTeam1().getSpieler1(),
                 scoreboardMap.getOrDefault(match.getTeam1().getSpieler1(), 0) + newScore1);
@@ -709,7 +708,6 @@ public class App extends Application {
         ranglistenVBox.getChildren().clear();
 
         List<Map.Entry<Spieler, Integer>> sorted = new ArrayList<>(scoreboardMap.entrySet());
-        // Absteigend nach Punkten
         sorted.sort((a, b) -> b.getValue().compareTo(a.getValue()));
 
         int rank = 1;
@@ -720,7 +718,6 @@ public class App extends Application {
             HBox row = new HBox(5);
             row.getStyleClass().add("ranglisten-item");
 
-            // NEU: Klassen für Gold/Silber/Bronze (1,2,3)
             if (rank == 1) {
                 row.getStyleClass().add("ranglisten-item-first");
             } else if (rank == 2) {
@@ -737,10 +734,14 @@ public class App extends Application {
             Label lblName = new Label(sp.getName());
             lblName.setStyle("-fx-text-fill: #2c3e50; -fx-font-size: 14; -fx-font-weight: bold;");
 
+            // NEU: Anzeige der Spielstärke in der Rangliste
+            Label lblStrength = new Label("(Stärke: " + sp.getSpielstaerke() + ")");
+            lblStrength.setStyle("-fx-text-fill: #34495e; -fx-font-size: 12;");
+
             Label lblPoints = new Label("(" + pts + " Punkte)");
             lblPoints.setStyle("-fx-text-fill: #34495e; -fx-font-size: 12;");
 
-            row.getChildren().addAll(lblRank, lblName, lblPoints);
+            row.getChildren().addAll(lblRank, lblName, lblStrength, lblPoints);
             ranglistenVBox.getChildren().add(row);
 
             FadeTransition fadeIn = new FadeTransition(Duration.millis(200), row);
@@ -760,7 +761,6 @@ public class App extends Application {
         }
     }
 
-    // CSV / EXCEL - Export
     private void exportToCSV() {
         if (aktuellesTurnier == null) {
             showErrorAlert("Kein Turnier zum Export!");
@@ -860,7 +860,7 @@ public class App extends Application {
                 for (int p = 0; p < anzahlPlaetze; p++) {
                     Cell c = row.createCell(p + 1);
                     if (p < spiele.size()) {
-                        c.setCellValue(spiele.get(p).toString());
+                        ((Cell) c).setCellValue(spiele.get(p).toString());
                     } else {
                         c.setCellValue("-");
                     }

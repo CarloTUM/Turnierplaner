@@ -1,39 +1,35 @@
-/* Hauptfenster */
+/* Dark Mode CSS */
 .root {
-    /* Beispiel-Font und Hintergrund */
     -fx-font-family: "Roboto", sans-serif;
-    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f0f0f0);
+    -fx-background-color: linear-gradient(to bottom right, #2c3e50, #34495e);
 }
 
 /* Menüleiste */
 .menu-bar {
-    -fx-background-color: #2c3e50;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 5);
+    -fx-background-color: #1c2833;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 5);
 }
-
 .menu-bar .menu {
     -fx-text-fill: #ecf0f1;
     -fx-font-size: 14px;
     -fx-padding: 6 12;
 }
-
 .menu-bar .menu:hover {
-    -fx-background-color: #34495e;
+    -fx-background-color: #212f3c;
     -fx-text-fill: #ffffff;
 }
 
 /* Sidebar */
 .sidebar {
-    -fx-background-color: linear-gradient(to bottom, #3498db, #5dade2);
-    -fx-border-color: #2980b9;
+    -fx-background-color: linear-gradient(to bottom, #34495e, #2c3e50);
+    -fx-border-color: #1b2631;
     -fx-border-width: 0 1 0 0;
     -fx-border-style: solid;
     -fx-padding: 20;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0, 0, 0);
 }
-
 .sidebar .label-title {
-    -fx-text-fill: #ffffff;
+    -fx-text-fill: #ecf0f1;
     -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 0, 1);
@@ -43,25 +39,24 @@
 .label-title {
     -fx-font-size: 16px;
     -fx-font-weight: bold;
-    -fx-text-fill: #2c3e50;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 1, 0, 0, 1);
+    -fx-text-fill: #ecf0f1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 1, 0, 0, 1);
 }
 
 /* Buttons */
 .button {
-    -fx-background-color: linear-gradient(to bottom right, #2980b9, #1c5980);
+    -fx-background-color: linear-gradient(to bottom right, #1abc9c, #16a085);
     -fx-text-fill: white;
     -fx-font-size: 14px;
     -fx-font-weight: bold;
     -fx-background-radius: 6;
     -fx-padding: 8 16;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 4, 0, 0, 2);
     -fx-cursor: hand;
     -fx-transition: all 0.3s ease;
 }
-
 .button:hover {
-    -fx-background-color: linear-gradient(to bottom right, #3498db, #2c7fb8);
+    -fx-background-color: linear-gradient(to bottom right, #16a085, #1abc9c);
     -fx-scale-x: 1.05;
     -fx-scale-y: 1.05;
 }
@@ -80,9 +75,8 @@
     -fx-border-color: #c0392b;
     -fx-border-width: 1;
     -fx-alignment: center;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 2, 0, 0, 1);
 }
-
 .remove-button:hover {
     -fx-background-color: #c0392b;
     -fx-scale-x: 1.05;
@@ -91,88 +85,83 @@
 
 /* Textfelder */
 .text-field {
-    -fx-background-color: linear-gradient(to bottom, #ffffff, #f9f9f9);
-    -fx-border-color: #bdc3c7;
+    -fx-background-color: linear-gradient(to bottom, #3b3b3b, #4a4a4a);
+    -fx-border-color: #7f8c8d;
     -fx-border-radius: 4;
     -fx-padding: 6;
     -fx-font-size: 14px;
+    -fx-text-fill: #ecf0f1;
 }
-
 .text-field:focused {
-    -fx-border-color: #3498db;
+    -fx-border-color: #16a085;
     -fx-border-width: 2;
-    -fx-background-color: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 3, 0, 0, 2);
+    -fx-background-color: #3b3b3b;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 2);
 }
 
 /* ComboBox */
 .combo-box {
-    -fx-background-color: linear-gradient(to bottom, #ffffff, #f0f4f8);
-    -fx-border-color: #bdc3c7;
+    -fx-background-color: linear-gradient(to bottom, #3b3b3b, #4a4a4a);
+    -fx-border-color: #7f8c8d;
     -fx-border-radius: 4;
     -fx-padding: 4;
     -fx-font-size: 14px;
+    -fx-text-fill: #ecf0f1;
 }
-
 .combo-box:focused {
-    -fx-border-color: #3498db;
+    -fx-border-color: #16a085;
     -fx-border-width: 2;
-    -fx-background-color: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 3, 0, 0, 2);
+    -fx-background-color: #3b3b3b;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 2);
 }
 
 /* Liste von Spielern in der Sidebar */
 .spieler-item {
-    -fx-background-color: linear-gradient(to right, #ffffff, #f9f9f9);
-    -fx-border-color: #ecf0f1;
+    -fx-background-color: linear-gradient(to right, #2c3e50, #34495e);
+    -fx-border-color: #7f8c8d;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-padding: 8 10;
     -fx-alignment: center-left;
     -fx-spacing: 5;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 0, 1);
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }
-
 .spieler-item:hover {
-    -fx-background-color: linear-gradient(to right, #f1c40f, #f39c12);
+    -fx-background-color: linear-gradient(to right, #16a085, #1abc9c);
     -fx-scale-x: 1.02;
     -fx-scale-y: 1.02;
 }
-
 .spieler-item-label {
     -fx-font-size: 14px;
-    -fx-text-fill: #2c3e50;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 1, 0, 0, 1);
+    -fx-text-fill: #ecf0f1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 1, 0, 0, 1);
 }
 
 /* TabPane */
 .center-tab-pane {
     -fx-background-color: transparent;
 }
-
 .tab-pane .tab-header-background {
-    -fx-background-color: #bdc3c7;
+    -fx-background-color: #34495e;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 0);
 }
-
 .tab {
     -fx-background-color: transparent;
     -fx-padding: 8 12;
-    -fx-text-base-color: #2c3e50;
+    -fx-text-base-color: #ecf0f1;
     -fx-font-weight: bold;
     -fx-font-size: 14px;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 1, 0, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 1, 0, 0, 1);
     -fx-transition: background-color 0.3s ease, color 0.3s ease;
 }
-
 .tab:selected {
-    -fx-background-color: #1abc9c;
+    -fx-background-color: #16a085;
     -fx-text-fill: white;
     -fx-background-radius: 6;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0, 0, 2);
 }
 
 /* GridPane (Turnierplan) */
@@ -184,7 +173,7 @@
 
 /* Label Zeit- / Platz-Beschriftung */
 .label-time, .label-platz {
-    -fx-background-color: #16a085;
+    -fx-background-color: #1abc9c;
     -fx-font-weight: bold;
     -fx-alignment: center;
     -fx-padding: 8;
@@ -196,32 +185,29 @@
 
 /* Match-Karte */
 .match-card {
-    -fx-background-color: linear-gradient(to bottom, #ecf0f1, #bdc3c7);
+    -fx-background-color: linear-gradient(to bottom, #4a4a4a, #3b3b3b);
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 4, 0, 0, 2);
     -fx-padding: 8;
     -fx-alignment: TOP_LEFT;
     -fx-spacing: 8;
-    -fx-border-color: #bdc3c7;
+    -fx-border-color: #7f8c8d;
     -fx-border-width: 1;
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }
-
 .match-card:hover {
-    -fx-background-color: linear-gradient(to bottom, #dfe6e9, #a4b0be);
+    -fx-background-color: linear-gradient(to bottom, #3b3b3b, #2c3e50);
     -fx-scale-x: 1.02;
     -fx-scale-y: 1.02;
 }
 
-/* MATCH-TEXT => ~40 Zeichen = ca. 320 px */
+/* MATCH-TEXT */
 .match-card-text {
     -fx-font-size: 14px;
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-wrap-text: true;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 1, 0, 0, 1);
-
-    /* ~40 Zeichen => 320 px (bei normaler 14px Font) */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 1, 0, 0, 1);
     -fx-pref-width: 320;
     -fx-min-width: 320;
     -fx-max-width: 320;
@@ -230,39 +216,38 @@
 /* Leer-Zelle */
 .match-empty {
     -fx-font-size: 14px;
-    -fx-text-fill: #95a5a6;
+    -fx-text-fill: #bdc3c7;
     -fx-alignment: center;
-    -fx-border-color: #bdc3c7;
+    -fx-border-color: #7f8c8d;
     -fx-border-width: 1;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-padding: 8;
-    -fx-background-color: #ffffff;
+    -fx-background-color: #2c3e50;
 }
 
-/* Pause-Label in der Zeile */
+/* Pause-Label */
 .pause-label {
-    -fx-background-color: #3498db;
+    -fx-background-color: #16a085;
     -fx-text-fill: white;
     -fx-font-weight: bold;
     -fx-alignment: center;
     -fx-padding: 8;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-border-color: #2980b9;
+    -fx-border-color: #1abc9c;
     -fx-border-width: 1.5;
     -fx-font-size: 14px;
 }
 
-/* PAUSEN-SPIELER => ~20 Zeichen => 160 px */
+/* Pausierende Spieler */
 .pause-players-label {
     -fx-font-size: 14px;
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-wrap-text: true;
-    -fx-background-color: linear-gradient(to bottom, #ffffff, #eef2f3);
+    -fx-background-color: linear-gradient(to bottom, #3b3b3b, #2c3e50);
     -fx-padding: 8;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 1);
-
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 2, 0, 0, 1);
     -fx-pref-width: 160;
     -fx-min-width: 160;
     -fx-max-width: 160;
@@ -273,40 +258,37 @@
     -fx-border-color: #e74c3c;
     -fx-border-width: 2;
     -fx-border-radius: 4;
-    -fx-background-color: #fdecea;
+    -fx-background-color: #662d2d;
     -fx-transition: all 0.3s ease;
 }
 
 /* Ranglisten */
 .ranglistenVBox {
-    -fx-background-color: linear-gradient(to bottom, #ffffff, #f9f9f9);
+    -fx-background-color: linear-gradient(to bottom, #2c3e50, #34495e);
     -fx-padding: 10;
     -fx-spacing: 8;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 6, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 6, 0, 0, 3);
 }
-
 .ranglisten-item {
-    -fx-background-color: linear-gradient(to right, #ecf0f1, #bdc3c7);
+    -fx-background-color: linear-gradient(to right, #3b3b3b, #2c3e50);
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-padding: 8 10;
     -fx-alignment: center-left;
     -fx-spacing: 8;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 2, 0, 0, 1);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 2, 0, 0, 1);
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }
-
 .ranglisten-item:hover {
-    -fx-background-color: linear-gradient(to right, #1abc9c, #16a085);
+    -fx-background-color: linear-gradient(to right, #16a085, #1abc9c);
     -fx-scale-x: 1.03;
     -fx-scale-y: 1.03;
 }
-
 /* Ranglisten-Banner */
 .ranglisten-banner {
-    -fx-background-color: #2980b9;
+    -fx-background-color: #16a085;
     -fx-text-fill: white;
     -fx-font-size: 16px;
     -fx-font-weight: bold;
@@ -314,53 +296,44 @@
     -fx-alignment: center;
     -fx-border-radius: 6;
     -fx-background-radius: 6;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 4, 0, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0, 0, 2);
 }
-
 /* Made-By Label */
 .made-by-label {
     -fx-background-color: transparent;
     -fx-font-style: italic;
     -fx-font-size: 12px;
-    -fx-text-fill: #7f8c8d;
+    -fx-text-fill: #bdc3c7;
 }
-
 /* Status-Label */
 .status-label {
     -fx-font-size: 14px;
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-padding: 8;
 }
-
 .info-label {
-    -fx-text-fill: #2980b9;
+    -fx-text-fill: #16a085;
 }
-
 .success-label {
     -fx-text-fill: #27ae60;
 }
-
 .error-label {
     -fx-text-fill: #e74c3c;
 }
-
 /* Fancy Dialog */
 .fancy-dialog-pane {
     -fx-font-size: 14px;
-    -fx-background-color: #fff;
-    -fx-border-color: #ccc;
+    -fx-background-color: #2c3e50;
+    -fx-border-color: #7f8c8d;
     -fx-border-width: 1;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
-
 /* Gold für Platz 1 */
 .ranglisten-item-first {
     -fx-background-color: linear-gradient(to right, #FFD700, #FFC107);
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-font-weight: bold;
-
-    /* Optional kannst du ähnliche Hover-Effekte wie bei den bestehenden .ranglisten-item hinzufügen: */
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }
 .ranglisten-item-first:hover {
@@ -368,11 +341,10 @@
     -fx-scale-x: 1.03;
     -fx-scale-y: 1.03;
 }
-
 /* Silber für Platz 2 */
 .ranglisten-item-second {
     -fx-background-color: linear-gradient(to right, #C0C0C0, #D3D3D3);
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-font-weight: bold;
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }
@@ -381,11 +353,10 @@
     -fx-scale-x: 1.03;
     -fx-scale-y: 1.03;
 }
-
 /* Bronze für Platz 3 */
 .ranglisten-item-third {
     -fx-background-color: linear-gradient(to right, #CD7F32, #B87333);
-    -fx-text-fill: #2c3e50;
+    -fx-text-fill: #ecf0f1;
     -fx-font-weight: bold;
     -fx-transition: background-color 0.3s ease, transform 0.3s ease;
 }

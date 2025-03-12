@@ -11,11 +11,10 @@ public class TournamentSolver {
 
     public Runde solveRunde(int rundenNummer, List<Spieler> spielerInRunde) {
         Model model = new Model("Runde " + rundenNummer);
-
         int numPlayers = spielerInRunde.size();
         int numTeams = numPlayers / 4;
 
-        // Variablen für Teams und Matches
+        // Variablen für Teams und Matches: matches[t][p] enthält den Index des Spielers in spielerInRunde
         IntVar[][] matches = new IntVar[numTeams][4];
         for (int t = 0; t < numTeams; t++) {
             for (int p = 0; p < 4; p++) {
@@ -23,7 +22,7 @@ public class TournamentSolver {
             }
         }
 
-        // Hard Constraint: Jeder Spieler darf nur einmal pro Runde auftreten
+        // Jeder Spieler darf nur einmal pro Runde auftreten
         List<IntVar> allPlayers = new ArrayList<>();
         for (int t = 0; t < numTeams; t++) {
             for (int p = 0; p < 4; p++) {
@@ -33,19 +32,14 @@ public class TournamentSolver {
         model.allDifferent(allPlayers.toArray(new IntVar[0])).post();
 
         /*
-         * SOFT CONSTRAINTS
-         *
-         * 1) Nicht-wiederholte Team-Partner
-         * 2) Nicht-wiederholte Gegner
-         * 3) Mixed Teams
-         *
-         * -> Wir trennen die BoolVars in unterschiedliche Listen, um sie unterschiedlich zu gewichten
+         * SOFT CONSTRAINTS:
+         * 1) Keine wiederholten Team-Partner (stärkere Gewichtung)
+         * 2) Keine wiederholten Gegner (normale Gewichtung)
+         * 3) Mixed Teams (z. B. Geschlechterverteilung – hier noch vorhanden, aber niedriger gewichtet)
          */
-
-        // Listen für Soft Constraint-Verletzungen
-        List<BoolVar> teamRepeatViolations = new ArrayList<>();      // stärkere Gewichtung
-        List<BoolVar> opponentRepeatViolations = new ArrayList<>();  // normale Gewichtung
-        List<BoolVar> mixedViolations = new ArrayList<>();           // normale Gewichtung
+        List<BoolVar> teamRepeatViolations = new ArrayList<>();
+        List<BoolVar> opponentRepeatViolations = new ArrayList<>();
+        List<BoolVar> mixedViolations = new ArrayList<>();
 
         for (int t = 0; t < numTeams; t++) {
             IntVar p1 = matches[t][0];
@@ -56,16 +50,10 @@ public class TournamentSolver {
             for (int i = 0; i < numPlayers; i++) {
                 Spieler spieler = spielerInRunde.get(i);
 
-                // Keine wiederholten Team-Partner => stärkere Gewichtung
+                // Wiederholte Team-Partner
                 for (Spieler partner : spieler.getPartnerHistorie()) {
                     int partnerIndex = spielerInRunde.indexOf(partner);
                     if (partnerIndex != -1) {
-                        // Falls p1 == i und p2 == partnerIndex (oder umgekehrt),
-                        // wollen wir ein BoolVar conflict = 1 erzeugen.
-                        // Beispielhaft nur für p1, p2 implementiert, ggf. musst du
-                        // p3, p4 ebenfalls prüfen, je nachdem wie du Teams zuordnest.
-
-                        // conflict1: p1 und p2 bilden ein "altes" Team
                         BoolVar conflict1 = model.boolVar();
                         model.ifThen(
                                 model.and(model.arithm(p1, "=", i),
@@ -74,7 +62,6 @@ public class TournamentSolver {
                         );
                         teamRepeatViolations.add(conflict1);
 
-                        // conflict2: p2 und p1 bilden ein "altes" Team
                         BoolVar conflict2 = model.boolVar();
                         model.ifThen(
                                 model.and(model.arithm(p2, "=", i),
@@ -82,17 +69,13 @@ public class TournamentSolver {
                                 model.arithm(conflict2, "=", 1)
                         );
                         teamRepeatViolations.add(conflict2);
-
-                        // Analog für p3, p4, etc. je nach Bedarf
                     }
                 }
 
-                // Keine wiederholten Gegner => normale Gewichtung
+                // Wiederholte Gegner
                 for (Spieler gegner : spieler.getGegnerHistorie()) {
                     int gegnerIndex = spielerInRunde.indexOf(gegner);
                     if (gegnerIndex != -1) {
-                        // Vergleichbar wie oben, aber packen wir in opponentRepeatViolations
-                        // conflict1: p1 == i und p3 == gegnerIndex
                         BoolVar conflict1 = model.boolVar();
                         model.ifThen(
                                 model.and(model.arithm(p1, "=", i),
@@ -101,7 +84,6 @@ public class TournamentSolver {
                         );
                         opponentRepeatViolations.add(conflict1);
 
-                        // conflict2: p1 == i und p4 == gegnerIndex
                         BoolVar conflict2 = model.boolVar();
                         model.ifThen(
                                 model.and(model.arithm(p1, "=", i),
@@ -109,14 +91,11 @@ public class TournamentSolver {
                                 model.arithm(conflict2, "=", 1)
                         );
                         opponentRepeatViolations.add(conflict2);
-                        // usw.
                     }
                 }
             }
 
-            // Mixed Teams => normale Gewichtung
-            // Beispiel: wir interpretieren "Mixed" so, dass p1 != p2 (evtl. Geschlecht o.Ä.),
-            // hier nur symbolisch:
+            // Mixed Teams – Beispielhaft hier als Dummy-Constraint (z. B. könnte hier auch das Geschlecht einfließen)
             BoolVar mixed = model.boolVar();
             model.ifThen(
                     model.arithm(p1, "!=", p2),
@@ -125,37 +104,82 @@ public class TournamentSolver {
             mixedViolations.add(mixed);
         }
 
-        // *** Gewichtete Summe erstellen ***
-
-        // 1) Summiere jede Liste einzeln
+        // Summen der Soft Constraint-Verletzungen
         IntVar teamRepeatSum = model.intVar("teamRepeatSum", 0, teamRepeatViolations.size());
         IntVar opponentRepeatSum = model.intVar("opponentRepeatSum", 0, opponentRepeatViolations.size());
         IntVar mixedSum = model.intVar("mixedSum", 0, mixedViolations.size());
-
         model.sum(teamRepeatViolations.toArray(new BoolVar[0]), "=", teamRepeatSum).post();
         model.sum(opponentRepeatViolations.toArray(new BoolVar[0]), "=", opponentRepeatSum).post();
         model.sum(mixedViolations.toArray(new BoolVar[0]), "=", mixedSum).post();
 
         /*
-         * 2) Lege Gewichte fest:
-         *    teamRepeatSum soll stärker ins Gewicht fallen, z.B. Faktor 2 (oder 3).
+         * NEUER PART: Spielstärke-Balancierung
+         * Ziel ist es, dass die Summe der Spielstärken der beiden Teams in einem Match möglichst gleich ist.
          */
-        int wTeamRepeat = 2;  // Beispielgewicht
-        int wOpponent = 1;    // normales Gewicht
-        int wMixed = 1;       // normales Gewicht
+        // Erstelle ein Array der Spielstärken für alle Spieler in dieser Runde
+        int[] skillLevels = new int[numPlayers];
+        for (int i = 0; i < numPlayers; i++) {
+            skillLevels[i] = spielerInRunde.get(i).getSpielstaerke();
+        }
 
-        // Erstelle eine Variable totalViolations, indem wir die gewichteten Summen zusammenrechnen.
-        // -> teamRepeat * 2 + opponentRepeat * 1 + mixed * 1
-        IntVar totalViolations = model.intVar("totalViolations", 0, 9999);
+        List<IntVar> skillDiffList = new ArrayList<>();
+        for (int t = 0; t < numTeams; t++) {
+            IntVar p1 = matches[t][0];
+            IntVar p2 = matches[t][1];
+            IntVar p3 = matches[t][2];
+            IntVar p4 = matches[t][3];
+
+            // Element-Constraints: Hole die Spielstärke der zugewiesenen Spieler
+            IntVar p1Skill = model.intVar("p1Skill_t" + t, 1, 10);
+            model.element(p1Skill, skillLevels, p1, 0).post();
+
+            IntVar p2Skill = model.intVar("p2Skill_t" + t, 1, 10);
+            model.element(p2Skill, skillLevels, p2, 0).post();
+
+            IntVar p3Skill = model.intVar("p3Skill_t" + t, 1, 10);
+            model.element(p3Skill, skillLevels, p3, 0).post();
+
+            IntVar p4Skill = model.intVar("p4Skill_t" + t, 1, 10);
+            model.element(p4Skill, skillLevels, p4, 0).post();
+
+            // Berechne die Teamstärke (Team besteht aus 2 Spielern)
+            IntVar team1Strength = model.intVar("team1Strength_t" + t, 2, 20);
+            model.sum(new IntVar[]{p1Skill, p2Skill}, "=", team1Strength).post();
+
+            IntVar team2Strength = model.intVar("team2Strength_t" + t, 2, 20);
+            model.sum(new IntVar[]{p3Skill, p4Skill}, "=", team2Strength).post();
+
+            // Berechne die absolute Differenz der Teamstärken
+            IntVar diff = model.intVar("diff_t" + t, 0, 20);
+            model.distance(team1Strength, team2Strength, "=", diff).post();
+            skillDiffList.add(diff);
+        }
+        // Gesamtdifferenz über alle Matches
+        IntVar skillDiffSum = model.intVar("skillDiffSum", 0, 20 * numTeams);
+        model.sum(skillDiffList.toArray(new IntVar[0]), "=", skillDiffSum).post();
+
+        /*
+         * Gewichtung der einzelnen Soft Constraints:
+         * - teamRepeatSum: starker Einfluss (z. B. Faktor 2)
+         * - opponentRepeatSum: normaler Einfluss (Faktor 1)
+         * - mixedSum: normaler Einfluss (Faktor 1)
+         * - skillDiffSum: Einfluss der Spielstärke-Balance (z. B. Faktor 2)
+         */
+        int wTeamRepeat = 2;
+        int wOpponent = 1;
+        int wMixed = 1;
+        int wSkillDiff = 2;
+
+        // Gesamtziel: Minimierung der gewichteten Summe aller Verletzungen
+        IntVar overallObjective = model.intVar("overallObjective", 0, 1000);
         model.scalar(
-                new IntVar[]{teamRepeatSum, opponentRepeatSum, mixedSum},
-                new int[]{wTeamRepeat, wOpponent, wMixed},
+                new IntVar[]{teamRepeatSum, opponentRepeatSum, mixedSum, skillDiffSum},
+                new int[]{wTeamRepeat, wOpponent, wMixed, wSkillDiff},
                 "=",
-                totalViolations
+                overallObjective
         ).post();
 
-        // Als letztes objektivieren wir diese totalViolations
-        model.setObjective(Model.MINIMIZE, totalViolations);
+        model.setObjective(Model.MINIMIZE, overallObjective);
 
         // Solver starten
         Runde runde = new Runde(rundenNummer);
@@ -169,7 +193,7 @@ public class TournamentSolver {
                 Team team1 = new Team(s1, s2);
                 Team team2 = new Team(s3, s4);
 
-                // Historie aktualisieren
+                // Aktualisiere die Historie (Team-Partner und Gegner)
                 s1.getPartnerHistorie().add(s2);
                 s2.getPartnerHistorie().add(s1);
                 s3.getPartnerHistorie().add(s4);
@@ -179,7 +203,6 @@ public class TournamentSolver {
                 s1.addGegner(s4);
                 s2.addGegner(s3);
                 s2.addGegner(s4);
-
                 s3.addGegner(s1);
                 s3.addGegner(s2);
                 s4.addGegner(s1);
@@ -194,5 +217,4 @@ public class TournamentSolver {
 
         return runde;
     }
-
 }

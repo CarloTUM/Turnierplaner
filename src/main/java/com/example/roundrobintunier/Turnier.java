@@ -16,27 +16,29 @@ public class Turnier {
         this.runden = new ArrayList<>();
     }
 
+    public List<Spieler> getSpielerListe() {
+        return spielerListe;
+    }
+
     public int getAnzahlPlaetze() {
-        return this.anzahlPlaetze;
+        return anzahlPlaetze;
     }
 
     public int getRundenAnzahl() {
-        return this.rundenAnzahl;
+        return rundenAnzahl;
     }
 
     public List<Runde> getRunden() {
-        return this.runden;
+        return runden;
     }
 
     /**
      * Erstellen des Turnierplans mithilfe des PausenManagers und TournamentSolvers.
      */
     public void turnierPlanErstellen() {
-        // Pausenlogik ausführen
         PausenManager pausenManager = new PausenManager(this.spielerListe, this.rundenAnzahl, this.anzahlPlaetze);
         List<List<Spieler>> rundenPlan = pausenManager.planeRunden();
 
-        // Runde für Runde mit dem Solver optimieren
         TournamentSolver solver = new TournamentSolver();
         for (int rundeNummer = 0; rundeNummer < rundenPlan.size(); rundeNummer++) {
             List<Spieler> spielerInRunde = rundenPlan.get(rundeNummer);
@@ -49,9 +51,6 @@ public class Turnier {
         }
     }
 
-    /**
-     * Gibt den gesamten Turnierplan als String aus.
-     */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

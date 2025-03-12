@@ -30,4 +30,3 @@ public class MatchResult {
         return team1Score + " : " + team2Score;
     }
 }
-

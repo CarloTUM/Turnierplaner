@@ -1,25 +1,25 @@
 package com.example.roundrobintunier;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Spieler {
     private String name;
-    private String geschlecht;
+    private String geschlecht;  // z.B. "M" oder "F"
+    private int spielstaerke;   // Werte von 1 bis 10
     private int pausenAnzahl;
     private int spielAnzahl;
-    private Set<Spieler> partnerHistorie;
+    private List<Spieler> partnerHistorie;
+    private List<Spieler> gegnerHistorie;
 
-    // NEU: Hier speichern wir Gegner, gegen die dieser Spieler schon gespielt hat:
-    private Set<Spieler> gegnerHistorie;
-
-    public Spieler(String name, String geschlecht) {
+    public Spieler(String name, String geschlecht, int spielstaerke) {
         this.name = name;
         this.geschlecht = geschlecht;
+        this.spielstaerke = spielstaerke;
         this.pausenAnzahl = 0;
         this.spielAnzahl = 0;
-        this.partnerHistorie = new HashSet<>();
-        this.gegnerHistorie = new HashSet<>(); // NEU
+        this.partnerHistorie = new ArrayList<>();
+        this.gegnerHistorie = new ArrayList<>();
     }
 
     public String getName() {
@@ -30,6 +30,10 @@ public class Spieler {
         return geschlecht;
     }
 
+    public int getSpielstaerke() {
+        return spielstaerke;
+    }
+
     public int getPausenAnzahl() {
         return pausenAnzahl;
     }
@@ -38,58 +42,46 @@ public class Spieler {
         return spielAnzahl;
     }
 
-    public Set<Spieler> getPartnerHistorie() {
+    public void erhoehePausenAnzahl() {
+        this.pausenAnzahl++;
+    }
+
+    public void resetPausenAnzahl() {
+        this.pausenAnzahl = 0;
+    }
+
+    public void incrementSpielAnzahl() {
+        this.spielAnzahl++;
+    }
+
+    public void resetSpielAnzahl() {
+        this.spielAnzahl = 0;
+    }
+
+    public List<Spieler> getPartnerHistorie() {
         return partnerHistorie;
     }
 
-    public Set<Spieler> getGegnerHistorie() {
+    public List<Spieler> getGegnerHistorie() {
         return gegnerHistorie;
     }
 
-    public void addGegner(Spieler s) {
-        this.gegnerHistorie.add(s);
+    public void addGegner(Spieler gegner) {
+        if (!gegnerHistorie.contains(gegner)) {
+            gegnerHistorie.add(gegner);
+        }
+    }
+
+    public void resetPartnerHistorie() {
+        this.partnerHistorie.clear();
     }
 
     public void resetGegnerHistorie() {
         this.gegnerHistorie.clear();
     }
 
-    public void erhoehePausenAnzahl() {
-        pausenAnzahl++;
-    }
-
-    public void erhoeheSpielAnzahl() {
-        spielAnzahl++;
-    }
-
-    public void resetPausenAnzahl() {
-        pausenAnzahl = 0;
-    }
-
-    public void resetSpielAnzahl() {
-        spielAnzahl = 0;
-    }
-
-    public void resetPartnerHistorie() {
-        partnerHistorie.clear();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Spieler that = (Spieler) o;
-        return name.equalsIgnoreCase(that.name);
-    }
-
-    @Override
-    public int hashCode() {
-        return name.toLowerCase().hashCode();
-    }
-
     @Override
     public String toString() {
-        return name;
+        return name + " (Stärke: " + spielstaerke + ")";
     }
 }
