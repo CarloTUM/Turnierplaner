@@ -30,6 +30,12 @@ import java.util.*;
 
 public class App extends Application {
 
+
+    private LocalTime startTime;
+    private int spieldauer;
+    private int pausenlaenge;
+    private List<List<Spieler>> pausenProRunde;
+
     private List<Spieler> spielerListe = new ArrayList<>();
     private Turnier aktuellesTurnier;
 
@@ -457,21 +463,20 @@ public class App extends Application {
             return;
         }
 
-        String startStr = startzeitField.getText().trim();
-        LocalTime startTime;
+        // Startzeit einlesen und Klassenfeld setzen
         try {
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
-            startTime = LocalTime.parse(startStr, fmt);
+            this.startTime = LocalTime.parse(startzeitField.getText().trim(), fmt);
         } catch (DateTimeParseException ex) {
             showErrorAlert("Bitte Startzeit im Format HH:mm eingeben (z.B. 09:00)!");
             updateStatus("Fehler: Ungültiges Startzeit-Format.", "error-label");
             return;
         }
 
-        int spieldauer, pausenlaenge;
+        // Spieldauer und Pausenlänge einlesen und Klassenfelder setzen
         try {
-            spieldauer = Integer.parseInt(spieldauerField.getText().trim());
-            pausenlaenge = Integer.parseInt(pausenlaengeField.getText().trim());
+            this.spieldauer = Integer.parseInt(spieldauerField.getText().trim());
+            this.pausenlaenge = Integer.parseInt(pausenlaengeField.getText().trim());
         } catch (NumberFormatException ex) {
             showErrorAlert("Bitte gültige Zahlen für Spieldauer und Pausenlänge eingeben!");
             updateStatus("Fehler: Ungültige Eingaben für Spieldauer oder Pausenlänge.", "error-label");
@@ -483,7 +488,7 @@ public class App extends Application {
             return;
         }
 
-        // Reset
+        // Reset der Spielerattribute
         for (Spieler s : spielerListe) {
             s.resetPausenAnzahl();
             s.resetSpielAnzahl();
@@ -491,15 +496,14 @@ public class App extends Application {
             s.resetGegnerHistorie();
         }
 
-        // PausenManager
+        // PausenManager erstellen und rundenPlan sowie pausenProRunde setzen
         PausenManager pm = new PausenManager(spielerListe, runden, plaetze);
         List<List<Spieler>> rundenPlan = pm.planeRunden();
-        List<List<Spieler>> pausenProRunde = pm.getPausenProRunde();
+        this.pausenProRunde = pm.getPausenProRunde();
 
-        // Turnier + Solver
+        // Turnier erstellen und Solver anwenden
         Turnier turnier = new Turnier(spielerListe, plaetze, runden);
         TournamentSolver solver = new TournamentSolver();
-
         for (int rundeNummer = 1; rundeNummer <= rundenPlan.size(); rundeNummer++) {
             List<Spieler> spielerInRunde = rundenPlan.get(rundeNummer - 1);
             Runde optimierteRunde = solver.solveRunde(rundeNummer, spielerInRunde);
@@ -507,21 +511,21 @@ public class App extends Application {
                 turnier.getRunden().add(optimierteRunde);
             }
         }
-
         this.aktuellesTurnier = turnier;
 
-        // Neues Scoreboard
+        // Neues Scoreboard initialisieren
         scoreboardMap.clear();
         for (Spieler sp : spielerListe) {
             scoreboardMap.put(sp, 0);
         }
         matchWinnerMap.clear();
 
-        // Anzeige
-        anzeigeTurnierPlanImGrid(turnier, startTime, spieldauer, pausenlaenge, pausenProRunde);
+        // Anzeige: Turnierplan im Grid, Rangliste und Status aktualisieren
+        anzeigeTurnierPlanImGrid(turnier, this.startTime, this.spieldauer, this.pausenlaenge, this.pausenProRunde);
         updateRanglisteUI();
         updateStatus("Turnierplan erstellt.", "success-label");
     }
+
 
     /**
      * Zeigt den Turnierplan zusammen mit den pausierenden Spielern.
@@ -825,7 +829,12 @@ public class App extends Application {
             updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
             return;
         }
-
+        // Wir gehen davon aus, dass die Werte für Startzeit, Spieldauer und Pausenlänge in den
+        // globalen Variablen 'startTime', 'spieldauer' und 'pausenlaenge' gespeichert sind.
+        if(startTime == null) {
+            showErrorAlert("Startzeit ist nicht gesetzt!");
+            return;
+        }
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Excel (XLSX) speichern");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
@@ -838,36 +847,104 @@ public class App extends Application {
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Turnierplan");
 
+            // Erstelle einige Zell-Styles für Header, Match, Zeit und Pause
+            CellStyle headerStyle = wb.createCellStyle();
+            Font headerFont = wb.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setFillForegroundColor(IndexedColors.TEAL.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle matchStyle = wb.createCellStyle();
+            matchStyle.setAlignment(HorizontalAlignment.CENTER);
+            matchStyle.setWrapText(true);
+            matchStyle.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
+            matchStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle timeStyle = wb.createCellStyle();
+            timeStyle.setAlignment(HorizontalAlignment.CENTER);
+            timeStyle.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+            timeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle pauseStyle = wb.createCellStyle();
+            pauseStyle.setAlignment(HorizontalAlignment.CENTER);
+            pauseStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+            pauseStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
             int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
             int rundenAnzahl = aktuellesTurnier.getRundenAnzahl();
 
-            Row headRow = sheet.createRow(0);
-            headRow.createCell(0).setCellValue("Zeit");
+            // Kopfzeile: Spalte 0: "Zeit", dann "Platz 1" ... "Platz N" und abschließend "Pausierende Spieler"
+            Row headerRow = sheet.createRow(0);
+            Cell timeHeaderCell = headerRow.createCell(0);
+            timeHeaderCell.setCellValue("Zeit");
+            timeHeaderCell.setCellStyle(headerStyle);
             for (int p = 1; p <= anzahlPlaetze; p++) {
-                headRow.createCell(p).setCellValue("Platz " + p);
+                Cell cell = headerRow.createCell(p);
+                cell.setCellValue("Platz " + p);
+                cell.setCellStyle(headerStyle);
             }
+            Cell pauseHeaderCell = headerRow.createCell(anzahlPlaetze + 1);
+            pauseHeaderCell.setCellValue("Pausierende Spieler");
+            pauseHeaderCell.setCellStyle(headerStyle);
 
-            int startZeitMin = 540; // 09:00
+            // Für jeden Turnierrunde erstellen wir zwei Zeilen:
+            // Eine Zeile mit dem Spielplan und eine Zeile mit den pausierenden Spielern.
+            int rowIndex = 1;
+            int startZeitMin = startTime.toSecondOfDay() / 60;
             for (int r = 0; r < rundenAnzahl; r++) {
-                Runde ru = aktuellesTurnier.getRunden().get(r);
-                Row row = sheet.createRow(r + 1);
-
+                // Match-Zeile:
+                Row matchRow = sheet.createRow(rowIndex++);
                 String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
-                startZeitMin += 35;
-                row.createCell(0).setCellValue(zeit);
+                Cell timeCell = matchRow.createCell(0);
+                timeCell.setCellValue(zeit);
+                timeCell.setCellStyle(timeStyle);
 
+                Runde ru = aktuellesTurnier.getRunden().get(r);
                 List<Match> spiele = ru.getSpiele();
                 for (int p = 0; p < anzahlPlaetze; p++) {
-                    Cell c = row.createCell(p + 1);
+                    Cell cell = matchRow.createCell(p + 1);
                     if (p < spiele.size()) {
-                        ((Cell) c).setCellValue(spiele.get(p).toString());
+                        cell.setCellValue(spiele.get(p).toString());
                     } else {
-                        c.setCellValue("-");
+                        cell.setCellValue("-");
                     }
+                    cell.setCellStyle(matchStyle);
+                }
+                // Letzte Spalte in der Match-Zeile bleibt leer
+                Cell blankCell = matchRow.createCell(anzahlPlaetze + 1);
+                blankCell.setCellValue("");
+                blankCell.setCellStyle(matchStyle);
+
+                // Pause-Zeile:
+                Row pauseRow = sheet.createRow(rowIndex++);
+                // Merge alle Zellen von Spalte 0 bis anzahlPlaetze+1
+                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(
+                        pauseRow.getRowNum(), pauseRow.getRowNum(), 0, anzahlPlaetze + 1));
+                Cell pauseCell = pauseRow.createCell(0);
+                List<Spieler> paused = pausenProRunde.get(r);
+                StringBuilder pauseStr = new StringBuilder("Pause: ");
+                for (Spieler sp : paused) {
+                    pauseStr.append(sp.getName()).append(", ");
+                }
+                if (pauseStr.length() > 0) {
+                    pauseStr.setLength(pauseStr.length() - 2); // Letztes Komma entfernen
+                }
+                pauseCell.setCellValue(pauseStr.toString());
+                pauseCell.setCellStyle(pauseStyle);
+
+                // Update der Startzeit: Analog zum GUI-Code
+                if (pausenlaenge > 0) {
+                    startZeitMin += (spieldauer + pausenlaenge);
+                } else {
+                    startZeitMin += spieldauer;
                 }
             }
 
-            for (int col = 0; col <= anzahlPlaetze; col++) {
+            // Auto-Size für alle Spalten
+            for (int col = 0; col < anzahlPlaetze + 2; col++) {
                 sheet.autoSizeColumn(col);
             }
 
@@ -879,13 +956,13 @@ public class App extends Application {
                     "Excel Export erfolgreich:\n" + f.getAbsolutePath(),
                     ButtonType.OK);
             ok.showAndWait();
-
             updateStatus("Excel Export erfolgreich: " + f.getAbsolutePath(), "success-label");
         } catch (IOException ex) {
             showErrorAlert("Fehler beim Excel Export: " + ex.getMessage());
             updateStatus("Fehler beim Excel Export.", "error-label");
         }
     }
+
 
     // EXTRAS
     private void zeigeZusammenfassung() {

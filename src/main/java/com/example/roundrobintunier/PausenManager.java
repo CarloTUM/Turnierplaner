@@ -42,12 +42,34 @@ public class PausenManager {
                 spielerInRunde.add(spielerListe.get(i));
             }
 
-            // Spieler, die nicht in dieser Runde spielen -> Pausenanzahl erhöhen
+            // Spieler, die nicht in dieser Runde spielen -> PausenAnzahl erhöhen
             List<Spieler> spielerInPause = new ArrayList<>();
             for (Spieler spieler : spielerListe) {
                 if (!spielerInRunde.contains(spieler)) {
                     spieler.erhoehePausenAnzahl();
                     spielerInPause.add(spieler);
+                }
+            }
+
+            // Bonus: Falls runde > 0 – Versuche, dass Spieler, die bereits pausiert haben, nicht zweimal hintereinander pausieren
+            if (runde > 0) {
+                List<Spieler> vorherigePausen = pausenProRunde.get(runde - 1);
+                // Kopie der aktuellen Pause-Liste, um über diese zu iterieren
+                List<Spieler> aktuellePauseKopie = new ArrayList<>(spielerInPause);
+                for (Spieler p : aktuellePauseKopie) {
+                    if (vorherigePausen.contains(p)) {
+                        // Suche in spielerInRunde nach einem Kandidaten, der in der Vorrunde NICHT pausiert war
+                        for (int i = 0; i < spielerInRunde.size(); i++) {
+                            Spieler kandidat = spielerInRunde.get(i);
+                            if (!vorherigePausen.contains(kandidat)) {
+                                // Tausch: Kandidat kommt in die Pause, p wird zum aktiven Spieler
+                                spielerInRunde.set(i, p);
+                                spielerInPause.remove(p);
+                                spielerInPause.add(kandidat);
+                                break; // Tausch einmal pro betroffener Pause genügt
+                            }
+                        }
+                    }
                 }
             }
 
@@ -62,9 +84,9 @@ public class PausenManager {
         for (int i = 0; i < pausenProRunde.size(); i++) {
             System.out.println("Runde " + (i + 1) + " pausierend: " + pausenProRunde.get(i));
         }
-
         return rundenPlan;
     }
+
 
     /**
      * Gibt die Liste zurück, in der für jede Runde die pausierenden Spieler abgelegt sind.
