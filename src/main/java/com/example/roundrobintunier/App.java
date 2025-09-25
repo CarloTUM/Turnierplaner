@@ -7,6 +7,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.ToolBar;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -15,7 +17,11 @@ import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.Priority;
+
+import javafx.print.PrinterJob;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.Cell;
@@ -30,6 +36,8 @@ import java.util.*;
 
 public class App extends Application {
 
+    // neu: Referenz auf die Stage (für Dialog-Owner & Drucken)
+    private Stage primary;
 
     private LocalTime startTime;
     private int spieldauer;
@@ -47,7 +55,7 @@ public class App extends Application {
     // UI-Felder
     private TextField nameField;
     private ComboBox<String> geschlechtComboBox;
-    private TextField spielstaerkeField; // NEU: Eingabe der Spielstärke
+    private TextField spielstaerkeField; // Eingabe der Spielstärke
     private TextField plaetzeField;
     private TextField rundenField;
     private TextField startzeitField;
@@ -65,25 +73,34 @@ public class App extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        this.primary = primaryStage;
         primaryStage.setTitle("Round Robin - Großzügiges Layout + Korrektes Punktesystem");
 
         // ---------------------------
-        // Menüleiste
+        // Menüleiste + Datei-Menü mit Shortcuts
         // ---------------------------
         MenuBar menuBar = new MenuBar();
         menuBar.getStyleClass().add("menu-bar");
 
         Menu menuDatei = new Menu("Datei");
-        MenuItem miExit = new MenuItem("Beenden");
-        miExit.setOnAction(e -> primaryStage.close());
-        menuDatei.getItems().add(miExit);
 
-        Menu menuExport = new Menu("Export");
-        MenuItem miExportExcel = new MenuItem("Export Excel");
-        miExportExcel.setOnAction(e -> exportToExcel());
-        MenuItem miExportCsv = new MenuItem("Export CSV");
-        miExportCsv.setOnAction(e -> exportToCSV());
-        menuExport.getItems().addAll(miExportExcel, miExportCsv);
+        MenuItem miSpeichernExcel = new MenuItem("Speichern als Excel…");
+        miSpeichernExcel.setOnAction(e -> exportToExcel());
+        miSpeichernExcel.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN)); // Ctrl/Cmd+Shift+S
+
+        MenuItem miSpeichernCSV = new MenuItem("Speichern als CSV…");
+        miSpeichernCSV.setOnAction(e -> exportToCSV());
+        miSpeichernCSV.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+S
+
+        MenuItem miDrucken = new MenuItem("Drucken…");
+        miDrucken.setOnAction(e -> printPlan());
+        miDrucken.setAccelerator(new KeyCodeCombination(KeyCode.P, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+P
+
+        MenuItem miBeenden = new MenuItem("Beenden");
+        miBeenden.setOnAction(e -> primary.close());
+        miBeenden.setAccelerator(new KeyCodeCombination(KeyCode.Q, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+Q
+
+        menuDatei.getItems().addAll(miSpeichernExcel, miSpeichernCSV, new SeparatorMenuItem(), miDrucken, new SeparatorMenuItem(), miBeenden);
 
         Menu menuExtras = new Menu("Extras");
         MenuItem miZusammenfassung = new MenuItem("Zusammenfassung");
@@ -95,7 +112,19 @@ public class App extends Application {
         miInfo.setOnAction(e -> zeigeInfo());
         menuHilfe.getItems().add(miInfo);
 
-        menuBar.getMenus().addAll(menuDatei, menuExport, menuExtras, menuHilfe);
+        menuBar.getMenus().addAll(menuDatei, menuExtras, menuHilfe);
+
+        // sichtbare Toolbar-Buttons
+        ToolBar toolBar = new ToolBar();
+        Button btnSaveCSV = new Button("CSV speichern");
+        btnSaveCSV.setOnAction(e -> exportToCSV());
+        Button btnSaveExcel = new Button("Excel speichern");
+        btnSaveExcel.setOnAction(e -> exportToExcel());
+        Button btnPrint = new Button("Drucken");
+        btnPrint.setOnAction(e -> printPlan());
+        Button btnExit = new Button("Beenden");
+        btnExit.setOnAction(e -> primary.close());
+        toolBar.getItems().addAll(btnSaveCSV, btnSaveExcel, btnPrint, new Separator(), btnExit);
 
         // ---------------------------
         // Linke Sidebar
@@ -103,7 +132,7 @@ public class App extends Application {
         VBox sidebar = new VBox(20);
         sidebar.setPadding(new Insets(20));
         sidebar.getStyleClass().add("sidebar");
-        sidebar.setPrefWidth(300); // etwas größer
+        sidebar.setPrefWidth(300);
 
         Label lblAdd = new Label("Neuen Spieler hinzufügen");
         lblAdd.getStyleClass().add("label-title");
@@ -117,7 +146,6 @@ public class App extends Application {
         geschlechtComboBox.setPromptText("Geschlecht");
         geschlechtComboBox.getStyleClass().add("combo-box");
 
-        // NEU: TextField für Spielstärke
         spielstaerkeField = new TextField();
         spielstaerkeField.setPromptText("Spielstärke (1-10)");
         spielstaerkeField.getStyleClass().add("text-field");
@@ -214,7 +242,7 @@ public class App extends Application {
         Tab tabPlan = new Tab("Turnierplan");
         spielplanGrid = new GridPane();
         spielplanGrid.getStyleClass().add("grid-pane");
-        spielplanGrid.setGridLinesVisible(true); // Debug: Zeige Gitternetz
+        spielplanGrid.setGridLinesVisible(true); // Debug
 
         ScrollPane planScroll = new ScrollPane(spielplanGrid);
         planScroll.setFitToWidth(false);
@@ -256,7 +284,10 @@ public class App extends Application {
         // Hauptlayout
         // ---------------------------
         BorderPane root = new BorderPane();
-        root.setTop(menuBar);
+        // Menü + Toolbar oben stapeln
+        VBox topBox = new VBox(menuBar, toolBar);
+        root.setTop(topBox);
+
         root.setLeft(sidebar);
         root.setCenter(centerTabPane);
         BorderPane.setMargin(centerTabPane, new Insets(10));
@@ -526,7 +557,6 @@ public class App extends Application {
         updateStatus("Turnierplan erstellt.", "success-label");
     }
 
-
     /**
      * Zeigt den Turnierplan zusammen mit den pausierenden Spielern.
      */
@@ -738,7 +768,7 @@ public class App extends Application {
             Label lblName = new Label(sp.getName());
             lblName.setStyle("-fx-text-fill: #2c3e50; -fx-font-size: 14; -fx-font-weight: bold;");
 
-            // NEU: Anzeige der Spielstärke in der Rangliste
+            // Anzeige der Spielstärke in der Rangliste
             Label lblStrength = new Label("(Stärke: " + sp.getSpielstaerke() + ")");
             lblStrength.setStyle("-fx-text-fill: #34495e; -fx-font-size: 12;");
 
@@ -775,7 +805,7 @@ public class App extends Application {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("CSV speichern");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV-Datei", "*.csv"));
-        File f = fileChooser.showSaveDialog(null);
+        File f = fileChooser.showSaveDialog(primary);
         if (f == null) {
             updateStatus("Export abgebrochen.", "info-label");
             return;
@@ -785,29 +815,39 @@ public class App extends Application {
             int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
             int rundenAnzahl = aktuellesTurnier.getRundenAnzahl();
 
-            StringBuilder sb = new StringBuilder("Zeit");
+            // Header
+            StringBuilder header = new StringBuilder("Zeit");
             for (int p = 1; p <= anzahlPlaetze; p++) {
-                sb.append(";Platz ").append(p);
+                header.append(";Platz ").append(p);
             }
-            pw.println(sb);
+            header.append(";Pausierende Spieler");
+            pw.println(header);
 
-            int startZeitMin = 540; // 09:00
+            int startZeitMin = startTime.toSecondOfDay() / 60;
             for (int r = 0; r < rundenAnzahl; r++) {
                 Runde ru = aktuellesTurnier.getRunden().get(r);
-                String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
-                startZeitMin += 35;
-
                 List<Match> spiele = ru.getSpiele();
-                StringBuilder sbRow = new StringBuilder(zeit);
+
+                String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
+                StringBuilder row = new StringBuilder(zeit);
                 for (int p = 0; p < anzahlPlaetze; p++) {
-                    sbRow.append(";");
-                    if (p < spiele.size()) {
-                        sbRow.append(spiele.get(p).toString());
-                    } else {
-                        sbRow.append("-");
-                    }
+                    row.append(";");
+                    row.append(p < spiele.size() ? spiele.get(p).toString() : "-");
                 }
-                pw.println(sbRow);
+
+                // Pausen-Spalte
+                List<Spieler> paused = pausenProRunde.get(r);
+                if (paused.isEmpty()) {
+                    row.append(";-");
+                } else {
+                    String pausedNames = String.join(", ", paused.stream().map(Spieler::getName).toList());
+                    row.append(";").append(pausedNames);
+                }
+
+                pw.println(row);
+
+                // Zeit erhöhen
+                startZeitMin += (pausenlaenge > 0 ? spieldauer + pausenlaenge : spieldauer);
             }
 
             pw.flush();
@@ -829,83 +869,92 @@ public class App extends Application {
             updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
             return;
         }
-        // Wir gehen davon aus, dass die Werte für Startzeit, Spieldauer und Pausenlänge in den
-        // globalen Variablen 'startTime', 'spieldauer' und 'pausenlaenge' gespeichert sind.
-        if(startTime == null) {
-            showErrorAlert("Startzeit ist nicht gesetzt!");
-            return;
-        }
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Excel (XLSX) speichern");
+        fileChooser.setTitle("Excel Turnierplan speichern");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
-        File f = fileChooser.showSaveDialog(null);
+        File f = fileChooser.showSaveDialog(primary);
         if (f == null) {
             updateStatus("Export abgebrochen.", "info-label");
             return;
         }
-
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Turnierplan");
 
-            // Erstelle einige Zell-Styles für Header, Match, Zeit und Pause
+            // Header-Style
             CellStyle headerStyle = wb.createCellStyle();
             Font headerFont = wb.createFont();
             headerFont.setBold(true);
             headerFont.setColor(IndexedColors.WHITE.getIndex());
             headerStyle.setFont(headerFont);
             headerStyle.setAlignment(HorizontalAlignment.CENTER);
-            headerStyle.setFillForegroundColor(IndexedColors.TEAL.getIndex());
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
             headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
 
+            // Zeit-Style
+            CellStyle timeStyle = wb.createCellStyle();
+            timeStyle.setAlignment(HorizontalAlignment.CENTER);
+            timeStyle.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+            timeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            timeStyle.setBorderBottom(BorderStyle.THIN);
+            timeStyle.setBorderTop(BorderStyle.THIN);
+            timeStyle.setBorderLeft(BorderStyle.THIN);
+            timeStyle.setBorderRight(BorderStyle.THIN);
+
+            // Match-Style
             CellStyle matchStyle = wb.createCellStyle();
             matchStyle.setAlignment(HorizontalAlignment.CENTER);
             matchStyle.setWrapText(true);
             matchStyle.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
             matchStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            matchStyle.setBorderBottom(BorderStyle.THIN);
+            matchStyle.setBorderTop(BorderStyle.THIN);
+            matchStyle.setBorderLeft(BorderStyle.THIN);
+            matchStyle.setBorderRight(BorderStyle.THIN);
 
-            CellStyle timeStyle = wb.createCellStyle();
-            timeStyle.setAlignment(HorizontalAlignment.CENTER);
-            timeStyle.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
-            timeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
+            // Pause-Style
             CellStyle pauseStyle = wb.createCellStyle();
             pauseStyle.setAlignment(HorizontalAlignment.CENTER);
             pauseStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
             pauseStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            pauseStyle.setBorderBottom(BorderStyle.THIN);
+            pauseStyle.setBorderTop(BorderStyle.THIN);
+            pauseStyle.setBorderLeft(BorderStyle.THIN);
+            pauseStyle.setBorderRight(BorderStyle.THIN);
 
             int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
             int rundenAnzahl = aktuellesTurnier.getRundenAnzahl();
 
-            // Kopfzeile: Spalte 0: "Zeit", dann "Platz 1" ... "Platz N" und abschließend "Pausierende Spieler"
+            // Kopfzeile: Zeit, Platz 1 .. Platz N, Pausierende Spieler
             Row headerRow = sheet.createRow(0);
-            Cell timeHeaderCell = headerRow.createCell(0);
-            timeHeaderCell.setCellValue("Zeit");
-            timeHeaderCell.setCellStyle(headerStyle);
+            Cell cell = headerRow.createCell(0);
+            cell.setCellValue("Zeit");
+            cell.setCellStyle(headerStyle);
             for (int p = 1; p <= anzahlPlaetze; p++) {
-                Cell cell = headerRow.createCell(p);
+                cell = headerRow.createCell(p);
                 cell.setCellValue("Platz " + p);
                 cell.setCellStyle(headerStyle);
             }
-            Cell pauseHeaderCell = headerRow.createCell(anzahlPlaetze + 1);
-            pauseHeaderCell.setCellValue("Pausierende Spieler");
-            pauseHeaderCell.setCellStyle(headerStyle);
+            cell = headerRow.createCell(anzahlPlaetze + 1);
+            cell.setCellValue("Pausierende Spieler");
+            cell.setCellStyle(headerStyle);
 
-            // Für jeden Turnierrunde erstellen wir zwei Zeilen:
-            // Eine Zeile mit dem Spielplan und eine Zeile mit den pausierenden Spielern.
-            int rowIndex = 1;
             int startZeitMin = startTime.toSecondOfDay() / 60;
+            int rowIndex = 1;
             for (int r = 0; r < rundenAnzahl; r++) {
-                // Match-Zeile:
+                // Zeile für Matches
                 Row matchRow = sheet.createRow(rowIndex++);
                 String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
-                Cell timeCell = matchRow.createCell(0);
-                timeCell.setCellValue(zeit);
-                timeCell.setCellStyle(timeStyle);
-
+                cell = matchRow.createCell(0);
+                cell.setCellValue(zeit);
+                cell.setCellStyle(timeStyle);
                 Runde ru = aktuellesTurnier.getRunden().get(r);
                 List<Match> spiele = ru.getSpiele();
                 for (int p = 0; p < anzahlPlaetze; p++) {
-                    Cell cell = matchRow.createCell(p + 1);
+                    cell = matchRow.createCell(p + 1);
                     if (p < spiele.size()) {
                         cell.setCellValue(spiele.get(p).toString());
                     } else {
@@ -913,49 +962,38 @@ public class App extends Application {
                     }
                     cell.setCellStyle(matchStyle);
                 }
-                // Letzte Spalte in der Match-Zeile bleibt leer
-                Cell blankCell = matchRow.createCell(anzahlPlaetze + 1);
-                blankCell.setCellValue("");
-                blankCell.setCellStyle(matchStyle);
+                // Letzte Spalte: Pausierende
+                List<Spieler> paused = pausenProRunde.get(r);
+                StringBuilder sb = new StringBuilder();
+                for (Spieler sp : paused) {
+                    sb.append(sp.getName()).append(", ");
+                }
+                if (sb.length() > 1) sb.setLength(sb.length() - 2);
+                cell = matchRow.createCell(anzahlPlaetze + 1);
+                cell.setCellValue(sb.toString());
+                cell.setCellStyle(matchStyle);
 
-                // Pause-Zeile:
+                // Zeile für Pausenzeile optisch (optional)
                 Row pauseRow = sheet.createRow(rowIndex++);
-                // Merge alle Zellen von Spalte 0 bis anzahlPlaetze+1
                 sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(
                         pauseRow.getRowNum(), pauseRow.getRowNum(), 0, anzahlPlaetze + 1));
-                Cell pauseCell = pauseRow.createCell(0);
-                List<Spieler> paused = pausenProRunde.get(r);
-                StringBuilder pauseStr = new StringBuilder("Pause: ");
-                for (Spieler sp : paused) {
-                    pauseStr.append(sp.getName()).append(", ");
-                }
-                if (pauseStr.length() > 0) {
-                    pauseStr.setLength(pauseStr.length() - 2); // Letztes Komma entfernen
-                }
-                pauseCell.setCellValue(pauseStr.toString());
-                pauseCell.setCellStyle(pauseStyle);
+                cell = pauseRow.createCell(0);
+                cell.setCellValue(pausenlaenge > 0 ? "Pause: " + pausenlaenge + " Min" : "—");
+                cell.setCellStyle(pauseStyle);
 
-                // Update der Startzeit: Analog zum GUI-Code
-                if (pausenlaenge > 0) {
-                    startZeitMin += (spieldauer + pausenlaenge);
-                } else {
-                    startZeitMin += spieldauer;
-                }
+                // Update der Startzeit
+                startZeitMin += (pausenlaenge > 0 ? spieldauer + pausenlaenge : spieldauer);
             }
-
-            // Auto-Size für alle Spalten
-            for (int col = 0; col < anzahlPlaetze + 2; col++) {
+            for (int col = 0; col <= anzahlPlaetze + 1; col++) {
                 sheet.autoSizeColumn(col);
             }
-
             try (FileOutputStream fos = new FileOutputStream(f)) {
                 wb.write(fos);
             }
-
-            Alert ok = new Alert(AlertType.INFORMATION,
+            Alert alert = new Alert(AlertType.INFORMATION,
                     "Excel Export erfolgreich:\n" + f.getAbsolutePath(),
                     ButtonType.OK);
-            ok.showAndWait();
+            alert.showAndWait();
             updateStatus("Excel Export erfolgreich: " + f.getAbsolutePath(), "success-label");
         } catch (IOException ex) {
             showErrorAlert("Fehler beim Excel Export: " + ex.getMessage());
@@ -963,6 +1001,98 @@ public class App extends Application {
         }
     }
 
+    private void exportTurnierergebnisseToExcel() {
+        if (aktuellesTurnier == null) {
+            showErrorAlert("Kein Turnier zum Export!");
+            updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
+            return;
+        }
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Excel Turnierergebnisse speichern");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
+        File f = fileChooser.showSaveDialog(primary);
+        if (f == null) {
+            updateStatus("Export abgebrochen.", "info-label");
+            return;
+        }
+        try (Workbook wb = new XSSFWorkbook()) {
+            // Sheet 1: Rangliste
+            Sheet sheetRanking = wb.createSheet("Rangliste");
+            CellStyle headerStyle = wb.createCellStyle();
+            Font headerFont = wb.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_GREEN.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+
+            Row headerRow = sheetRanking.createRow(0);
+            Cell cell = headerRow.createCell(0);
+            cell.setCellValue("Rang");
+            cell.setCellStyle(headerStyle);
+            cell = headerRow.createCell(1);
+            cell.setCellValue("Spieler");
+            cell.setCellStyle(headerStyle);
+            cell = headerRow.createCell(2);
+            cell.setCellValue("Spielstärke");
+            cell.setCellStyle(headerStyle);
+            cell = headerRow.createCell(3);
+            cell.setCellValue("Punkte");
+            cell.setCellStyle(headerStyle);
+
+            // Sortiere scoreboardMap absteigend nach Punkten
+            List<Map.Entry<Spieler, Integer>> ranking = new ArrayList<>(scoreboardMap.entrySet());
+            ranking.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+            int rowIndex = 1;
+            for (Map.Entry<Spieler, Integer> entry : ranking) {
+                Row row = sheetRanking.createRow(rowIndex);
+                row.createCell(0).setCellValue(rowIndex);
+                row.createCell(1).setCellValue(entry.getKey().getName());
+                row.createCell(2).setCellValue(entry.getKey().getSpielstaerke());
+                row.createCell(3).setCellValue(entry.getValue());
+                rowIndex++;
+            }
+            for (int i = 0; i < 4; i++) {
+                sheetRanking.autoSizeColumn(i);
+            }
+
+            // Sheet 2: Statistiken
+            Sheet sheetStats = wb.createSheet("Statistiken");
+            int totalMatches = 0;
+            for (Runde r : aktuellesTurnier.getRunden()) {
+                totalMatches += r.getSpiele().size();
+            }
+            Row statRow1 = sheetStats.createRow(0);
+            statRow1.createCell(0).setCellValue("Gesamtspieler");
+            statRow1.createCell(1).setCellValue(spielerListe.size());
+            Row statRow2 = sheetStats.createRow(1);
+            statRow2.createCell(0).setCellValue("Gesamtrunden");
+            statRow2.createCell(1).setCellValue(aktuellesTurnier.getRundenAnzahl());
+            Row statRow3 = sheetStats.createRow(2);
+            statRow3.createCell(0).setCellValue("Gesamtmatches");
+            statRow3.createCell(1).setCellValue(totalMatches);
+
+            sheetStats.autoSizeColumn(0);
+            sheetStats.autoSizeColumn(1);
+
+            try (FileOutputStream fos = new FileOutputStream(f)) {
+                wb.write(fos);
+            }
+            Alert alert = new Alert(AlertType.INFORMATION,
+                    "Excel Export (Turnierergebnisse) erfolgreich:\n" + f.getAbsolutePath(),
+                    ButtonType.OK);
+            alert.showAndWait();
+            updateStatus("Excel Export (Turnierergebnisse) erfolgreich: " + f.getAbsolutePath(), "success-label");
+        } catch (IOException ex) {
+            showErrorAlert("Fehler beim Excel Export (Turnierergebnisse): " + ex.getMessage());
+            updateStatus("Fehler beim Excel Export (Turnierergebnisse).", "error-label");
+        }
+    }
 
     // EXTRAS
     private void zeigeZusammenfassung() {
@@ -1013,6 +1143,43 @@ public class App extends Application {
             info.getDialogPane().getStyleClass().add("fancy-dialog-pane");
         }
         info.showAndWait();
+    }
+
+    // DRUCKEN
+    private void printPlan() {
+        if (spielplanGrid == null) {
+            showErrorAlert("Nichts zu drucken.");
+            return;
+        }
+        PrinterJob job = PrinterJob.createPrinterJob();
+        if (job == null) {
+            showErrorAlert("Kein Druckerjob verfügbar.");
+            return;
+        }
+        boolean proceed = job.showPrintDialog(primary);
+        if (!proceed) {
+            updateStatus("Druck abgebrochen.", "info-label");
+            return;
+        }
+        // Optional leicht skalieren
+        double oldX = spielplanGrid.getScaleX();
+        double oldY = spielplanGrid.getScaleY();
+        spielplanGrid.setScaleX(0.9);
+        spielplanGrid.setScaleY(0.9);
+
+        boolean success = job.printPage(spielplanGrid);
+
+        // zurücksetzen
+        spielplanGrid.setScaleX(oldX);
+        spielplanGrid.setScaleY(oldY);
+
+        if (success) {
+            job.endJob();
+            updateStatus("Druck erfolgreich.", "success-label");
+        } else {
+            showErrorAlert("Drucken fehlgeschlagen.");
+            updateStatus("Drucken fehlgeschlagen.", "error-label");
+        }
     }
 
     // ANIMATIONEN

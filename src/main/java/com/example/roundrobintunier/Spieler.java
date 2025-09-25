@@ -22,49 +22,19 @@ public class Spieler {
         this.gegnerHistorie = new ArrayList<>();
     }
 
-    public String getName() {
-        return name;
-    }
+    public String getName() { return name; }
+    public String getGeschlecht() { return geschlecht; }
+    public int getSpielstaerke() { return spielstaerke; }
+    public int getPausenAnzahl() { return pausenAnzahl; }
+    public int getSpielAnzahl() { return spielAnzahl; }
 
-    public String getGeschlecht() {
-        return geschlecht;
-    }
+    public void erhoehePausenAnzahl() { this.pausenAnzahl++; }
+    public void resetPausenAnzahl() { this.pausenAnzahl = 0; }
+    public void incrementSpielAnzahl() { this.spielAnzahl++; }
+    public void resetSpielAnzahl() { this.spielAnzahl = 0; }
 
-    public int getSpielstaerke() {
-        return spielstaerke;
-    }
-
-    public int getPausenAnzahl() {
-        return pausenAnzahl;
-    }
-
-    public int getSpielAnzahl() {
-        return spielAnzahl;
-    }
-
-    public void erhoehePausenAnzahl() {
-        this.pausenAnzahl++;
-    }
-
-    public void resetPausenAnzahl() {
-        this.pausenAnzahl = 0;
-    }
-
-    public void incrementSpielAnzahl() {
-        this.spielAnzahl++;
-    }
-
-    public void resetSpielAnzahl() {
-        this.spielAnzahl = 0;
-    }
-
-    public List<Spieler> getPartnerHistorie() {
-        return partnerHistorie;
-    }
-
-    public List<Spieler> getGegnerHistorie() {
-        return gegnerHistorie;
-    }
+    public List<Spieler> getPartnerHistorie() { return partnerHistorie; }
+    public List<Spieler> getGegnerHistorie() { return gegnerHistorie; }
 
     public void addGegner(Spieler gegner) {
         if (!gegnerHistorie.contains(gegner)) {
@@ -72,13 +42,8 @@ public class Spieler {
         }
     }
 
-    public void resetPartnerHistorie() {
-        this.partnerHistorie.clear();
-    }
-
-    public void resetGegnerHistorie() {
-        this.gegnerHistorie.clear();
-    }
+    public void resetPartnerHistorie() { this.partnerHistorie.clear(); }
+    public void resetGegnerHistorie() { this.gegnerHistorie.clear(); }
 
     @Override
     public String toString() {

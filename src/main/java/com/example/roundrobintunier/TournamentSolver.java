@@ -1,228 +1,265 @@
 package com.example.roundrobintunier;
 
 import org.chocosolver.solver.Model;
+import org.chocosolver.solver.constraints.Constraint;
 import org.chocosolver.solver.variables.BoolVar;
 import org.chocosolver.solver.variables.IntVar;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
+/** Runde mit hoher (weicher) Priorität: keine Partner-Wiederholungen; dann Gegner; dann Skill; dann Mixed. */
 public class TournamentSolver {
 
     public Runde solveRunde(int rundenNummer, List<Spieler> spielerInRunde) {
         Model model = new Model("Runde " + rundenNummer);
         int numPlayers = spielerInRunde.size();
-        int numTeams = numPlayers / 4;
 
-        // Erzeuge ein Array der Geschlechter: M = 0, F = 1
+        if (numPlayers == 0 || numPlayers % 4 != 0) {
+            System.out.println("[Solver] Spielerzahl ist 0 oder nicht durch 4 teilbar – Runde " + rundenNummer + " wird übersprungen.");
+            return null;
+        }
+
+        int numMatches = numPlayers / 4;
+
+        // Geschlechter: M = 0, F = 1 (alles außer "F" wird als 0 behandelt)
         int[] genderLevels = new int[numPlayers];
         for (int i = 0; i < numPlayers; i++) {
-            genderLevels[i] = spielerInRunde.get(i).getGeschlecht().equalsIgnoreCase("M") ? 0 : 1;
+            String g = spielerInRunde.get(i).getGeschlecht();
+            g = (g == null) ? "" : g.trim().toUpperCase();
+            genderLevels[i] = "F".equals(g) ? 1 : 0;
         }
 
-        // Variablen für Teams (matches[t][p] enthält den Index des Spielers in spielerInRunde)
-        IntVar[][] matches = new IntVar[numTeams][4];
-        for (int t = 0; t < numTeams; t++) {
+        // Variablen: matches[m][p] = Index des Spielers in spielerInRunde
+        IntVar[][] matches = new IntVar[numMatches][4];
+        for (int m = 0; m < numMatches; m++) {
             for (int p = 0; p < 4; p++) {
-                matches[t][p] = model.intVar("Team" + t + "_Player" + p, 0, numPlayers - 1);
+                matches[m][p] = model.intVar("M" + m + "_P" + p, 0, numPlayers - 1);
             }
         }
 
-        // Jeder Spieler darf nur einmal pro Runde auftreten
-        List<IntVar> allPlayers = new ArrayList<>();
-        for (int t = 0; t < numTeams; t++) {
-            for (int p = 0; p < 4; p++) {
-                allPlayers.add(matches[t][p]);
-            }
+        // Jeder Spieler genau einmal
+        List<IntVar> all = new ArrayList<>();
+        for (IntVar[] row : matches) for (IntVar v : row) all.add(v);
+        model.allDifferent(all.toArray(new IntVar[0])).post();
+
+        // --- Symmetriebrecher ---
+        for (int m = 0; m < numMatches; m++) {
+            model.arithm(matches[m][0], "<", matches[m][1]).post();
+            model.arithm(matches[m][2], "<", matches[m][3]).post();
         }
-        model.allDifferent(allPlayers.toArray(new IntVar[0])).post();
-
-        /*
-         * SOFT CONSTRAINTS:
-         * 1) Keine wiederholten Team-Partner (stärkere Gewichtung)
-         * 2) Keine wiederholten Gegner (normale Gewichtung)
-         * 3) Bevorzugt gemischte Teams: Wenn zwei Spieler im Team das gleiche Geschlecht haben, wird ein Strafwert (1) erhoben.
-         */
-        List<BoolVar> teamRepeatViolations = new ArrayList<>();
-        List<BoolVar> opponentRepeatViolations = new ArrayList<>();
-        List<BoolVar> mixedViolations = new ArrayList<>();
-
-        for (int t = 0; t < numTeams; t++) {
-            IntVar p1 = matches[t][0];
-            IntVar p2 = matches[t][1];
-            IntVar p3 = matches[t][2];
-            IntVar p4 = matches[t][3];
-
-            for (int i = 0; i < numPlayers; i++) {
-                Spieler spieler = spielerInRunde.get(i);
-
-                // Wiederholte Team-Partner
-                for (Spieler partner : spieler.getPartnerHistorie()) {
-                    int partnerIndex = spielerInRunde.indexOf(partner);
-                    if (partnerIndex != -1) {
-                        BoolVar conflict1 = model.boolVar();
-                        model.ifThen(
-                                model.and(model.arithm(p1, "=", i),
-                                        model.arithm(p2, "=", partnerIndex)),
-                                model.arithm(conflict1, "=", 1)
-                        );
-                        teamRepeatViolations.add(conflict1);
-
-                        BoolVar conflict2 = model.boolVar();
-                        model.ifThen(
-                                model.and(model.arithm(p2, "=", i),
-                                        model.arithm(p1, "=", partnerIndex)),
-                                model.arithm(conflict2, "=", 1)
-                        );
-                        teamRepeatViolations.add(conflict2);
-                    }
-                }
-
-                // Wiederholte Gegner
-                for (Spieler gegner : spieler.getGegnerHistorie()) {
-                    int gegnerIndex = spielerInRunde.indexOf(gegner);
-                    if (gegnerIndex != -1) {
-                        BoolVar conflict1 = model.boolVar();
-                        model.ifThen(
-                                model.and(model.arithm(p1, "=", i),
-                                        model.arithm(p3, "=", gegnerIndex)),
-                                model.arithm(conflict1, "=", 1)
-                        );
-                        opponentRepeatViolations.add(conflict1);
-
-                        BoolVar conflict2 = model.boolVar();
-                        model.ifThen(
-                                model.and(model.arithm(p1, "=", i),
-                                        model.arithm(p4, "=", gegnerIndex)),
-                                model.arithm(conflict2, "=", 1)
-                        );
-                        opponentRepeatViolations.add(conflict2);
-                    }
-                }
-            }
-
-            // NEU: Mixed Teams: Für beide Teams innerhalb des Matches prüfen wir, ob die beiden Spieler unterschiedliche Geschlechter haben.
-            // Team 1: p1 und p2
-            IntVar gender1 = model.intVar("gender1_t" + t, 0, 1);
-            model.element(gender1, genderLevels, p1, 0).post();
-            IntVar gender2 = model.intVar("gender2_t" + t, 0, 1);
-            model.element(gender2, genderLevels, p2, 0).post();
-            BoolVar mixedPenaltyTeam1 = model.boolVar("mixedPenalty_team1_t" + t);
-            model.arithm(gender1, "=", gender2).reifyWith(mixedPenaltyTeam1);
-            mixedViolations.add(mixedPenaltyTeam1);
-
-            // Team 2: p3 und p4
-            IntVar gender3 = model.intVar("gender3_t" + t, 0, 1);
-            model.element(gender3, genderLevels, p3, 0).post();
-            IntVar gender4 = model.intVar("gender4_t" + t, 0, 1);
-            model.element(gender4, genderLevels, p4, 0).post();
-            BoolVar mixedPenaltyTeam2 = model.boolVar("mixedPenalty_team2_t" + t);
-            model.arithm(gender3, "=", gender4).reifyWith(mixedPenaltyTeam2);
-            mixedViolations.add(mixedPenaltyTeam2);
+        for (int m = 1; m < numMatches; m++) {
+            model.arithm(matches[m - 1][0], "<", matches[m][0]).post();
         }
 
-        // Summen der Soft Constraint-Verletzungen
-        IntVar teamRepeatSum = model.intVar("teamRepeatSum", 0, teamRepeatViolations.size());
-        IntVar opponentRepeatSum = model.intVar("opponentRepeatSum", 0, opponentRepeatViolations.size());
-        IntVar mixedSum = model.intVar("mixedSum", 0, mixedViolations.size());
-        model.sum(teamRepeatViolations.toArray(new BoolVar[0]), "=", teamRepeatSum).post();
-        model.sum(opponentRepeatViolations.toArray(new BoolVar[0]), "=", opponentRepeatSum).post();
-        model.sum(mixedViolations.toArray(new BoolVar[0]), "=", mixedSum).post();
+        // --- Partner-Wiederholung ---
+        List<int[]> forbiddenPairs = new ArrayList<>();
+        Map<Spieler, Integer> idxOf = new HashMap<>();
+        for (int i = 0; i < numPlayers; i++) idxOf.put(spielerInRunde.get(i), i);
 
-        /*
-         * NEUER PART: Spielstärke-Balancierung
-         * Ziel: Die Summe der Spielstärken der beiden Teams in einem Match möglichst angleichen.
-         */
-        int[] skillLevels = new int[numPlayers];
+        boolean[][] seenPartner = new boolean[numPlayers][numPlayers];
         for (int i = 0; i < numPlayers; i++) {
-            skillLevels[i] = spielerInRunde.get(i).getSpielstaerke();
+            for (Spieler partner : spielerInRunde.get(i).getPartnerHistorie()) {
+                Integer jObj = idxOf.get(partner);
+                if (jObj == null) continue;
+                int j = jObj;
+                int a = Math.min(i, j), b = Math.max(i, j);
+                if (a == b) continue;
+                if (!seenPartner[a][b]) {
+                    seenPartner[a][b] = true;
+                    forbiddenPairs.add(new int[]{a, b});
+                }
+            }
         }
 
-        List<IntVar> skillDiffList = new ArrayList<>();
-        for (int t = 0; t < numTeams; t++) {
-            IntVar p1 = matches[t][0];
-            IntVar p2 = matches[t][1];
-            IntVar p3 = matches[t][2];
-            IntVar p4 = matches[t][3];
+        List<BoolVar> teamRepeatViolations = new ArrayList<>();
+        for (int m = 0; m < numMatches; m++) {
+            IntVar p1 = matches[m][0];
+            IntVar p2 = matches[m][1];
+            IntVar p3 = matches[m][2];
+            IntVar p4 = matches[m][3];
 
-            // Element-Constraints: Hole die Spielstärke der zugewiesenen Spieler
-            IntVar p1Skill = model.intVar("p1Skill_t" + t, 1, 10);
-            model.element(p1Skill, skillLevels, p1, 0).post();
-            IntVar p2Skill = model.intVar("p2Skill_t" + t, 1, 10);
-            model.element(p2Skill, skillLevels, p2, 0).post();
-            IntVar p3Skill = model.intVar("p3Skill_t" + t, 1, 10);
-            model.element(p3Skill, skillLevels, p3, 0).post();
-            IntVar p4Skill = model.intVar("p4Skill_t" + t, 1, 10);
-            model.element(p4Skill, skillLevels, p4, 0).post();
+            for (int[] ab : forbiddenPairs) {
+                int a = ab[0], b = ab[1];
 
-            // Berechne die Teamstärke (jeweils 2 Spieler pro Team)
-            IntVar team1Strength = model.intVar("team1Strength_t" + t, 2, 20);
-            model.sum(new IntVar[]{p1Skill, p2Skill}, "=", team1Strength).post();
-            IntVar team2Strength = model.intVar("team2Strength_t" + t, 2, 20);
-            model.sum(new IntVar[]{p3Skill, p4Skill}, "=", team2Strength).post();
+                BoolVar t1rep = model.boolVar();
+                model.and(model.arithm(p1, "=", a), model.arithm(p2, "=", b)).reifyWith(t1rep);
+                teamRepeatViolations.add(t1rep);
 
-            // Berechne die absolute Differenz der Teamstärken
-            IntVar diff = model.intVar("diff_t" + t, 0, 20);
-            model.distance(team1Strength, team2Strength, "=", diff).post();
-            skillDiffList.add(diff);
+                BoolVar t2rep = model.boolVar();
+                model.and(model.arithm(p3, "=", a), model.arithm(p4, "=", b)).reifyWith(t2rep);
+                teamRepeatViolations.add(t2rep);
+            }
         }
-        IntVar skillDiffSum = model.intVar("skillDiffSum", 0, 20 * numTeams);
-        model.sum(skillDiffList.toArray(new IntVar[0]), "=", skillDiffSum).post();
 
-        /*
-         * Gewichtung der Soft Constraints:
-         * - teamRepeatSum: Faktor 2
-         * - opponentRepeatSum: Faktor 1
-         * - mixedSum: Faktor 1 (bevorzugt gemischte Teams, also wird bei gleichen Geschlechtern 1 erhoben)
-         * - skillDiffSum: Faktor 2
-         */
-        int wTeamRepeat = 2;
-        int wOpponent = 1;
-        int wMixed = 1;
-        int wSkillDiff = 2;
+        // --- Gegner-Wiederholungen (symmetrisch & dedupliziert) ---
+        // Sammle alle (a,b) mit a<b aus der Historie (ohne Doppelzählung)
+        boolean[][] seenOppPair = new boolean[numPlayers][numPlayers];
+        List<int[]> opponentPairs = new ArrayList<>();
+        for (int i = 0; i < numPlayers; i++) {
+            for (Spieler gegner : spielerInRunde.get(i).getGegnerHistorie()) {
+                Integer jObj = idxOf.get(gegner);
+                if (jObj == null) continue;
+                int j = jObj;
+                if (i == j) continue;
+                int a = Math.min(i, j), b = Math.max(i, j);
+                if (!seenOppPair[a][b]) {
+                    seenOppPair[a][b] = true;
+                    opponentPairs.add(new int[]{a, b});
+                }
+            }
+        }
 
-        IntVar overallObjective = model.intVar("overallObjective", 0, 1000);
+        List<BoolVar> opponentRepeatViolations = new ArrayList<>();
+        for (int m = 0; m < numMatches; m++) {
+            IntVar p1 = matches[m][0], p2 = matches[m][1], p3 = matches[m][2], p4 = matches[m][3];
+
+            // Hilfs-Constraints: Mitgliedschaft in linker/rechter Teamhälfte
+            // Für jede Paarung (i,j) werten wir (i in {p1,p2} & j in {p3,p4}) OR (i in {p3,p4} & j in {p1,p2})
+            for (int[] ab : opponentPairs) {
+                int i = ab[0], j = ab[1];
+
+                // i links?
+                BoolVar iLeft = model.boolVar();
+                Constraint iLeftC = model.or(model.arithm(p1, "=", i), model.arithm(p2, "=", i));
+                iLeftC.reifyWith(iLeft);
+
+                // j rechts?
+                BoolVar jRight = model.boolVar();
+                Constraint jRightC = model.or(model.arithm(p3, "=", j), model.arithm(p4, "=", j));
+                jRightC.reifyWith(jRight);
+
+                // i rechts?
+                BoolVar iRight = model.boolVar();
+                Constraint iRightC = model.or(model.arithm(p3, "=", i), model.arithm(p4, "=", i));
+                iRightC.reifyWith(iRight);
+
+                // j links?
+                BoolVar jLeft = model.boolVar();
+                Constraint jLeftC = model.or(model.arithm(p1, "=", j), model.arithm(p2, "=", j));
+                jLeftC.reifyWith(jLeft);
+
+                // (iLeft & jRight) OR (iRight & jLeft)
+                BoolVar iL_and_jR = model.boolVar();
+                model.and(iLeft, jRight).reifyWith(iL_and_jR);
+
+                BoolVar iR_and_jL = model.boolVar();
+                model.and(iRight, jLeft).reifyWith(iR_and_jL);
+
+                BoolVar oppHere = model.boolVar();
+                model.or(iL_and_jR, iR_and_jL).reifyWith(oppHere);
+
+                opponentRepeatViolations.add(oppHere);
+            }
+        }
+
+        // --- Mixed ---
+        List<BoolVar> mixedViolations = new ArrayList<>();
+        for (int m = 0; m < numMatches; m++) {
+            IntVar p1 = matches[m][0], p2 = matches[m][1], p3 = matches[m][2], p4 = matches[m][3];
+
+            IntVar g1 = model.intVar("g1_m" + m, 0, 1); model.element(g1, genderLevels, p1, 0).post();
+            IntVar g2 = model.intVar("g2_m" + m, 0, 1); model.element(g2, genderLevels, p2, 0).post();
+            BoolVar mixed1 = model.boolVar(); model.arithm(g1, "=", g2).reifyWith(mixed1);
+            mixedViolations.add(mixed1);
+
+            IntVar g3 = model.intVar("g3_m" + m, 0, 1); model.element(g3, genderLevels, p3, 0).post();
+            IntVar g4 = model.intVar("g4_m" + m, 0, 1); model.element(g4, genderLevels, p4, 0).post();
+            BoolVar mixed2 = model.boolVar(); model.arithm(g3, "=", g4).reifyWith(mixed2);
+            mixedViolations.add(mixed2);
+        }
+
+        // --- Skill-Balance ---
+        int[] skillLevels = new int[numPlayers];
+        for (int i = 0; i < numPlayers; i++) skillLevels[i] = spielerInRunde.get(i).getSpielstaerke();
+        int minSkill = Arrays.stream(skillLevels).min().orElse(1);
+        int maxSkill = Arrays.stream(skillLevels).max().orElse(10);
+
+        List<IntVar> skillDiffs = new ArrayList<>();
+        for (int m = 0; m < numMatches; m++) {
+            IntVar p1 = matches[m][0], p2 = matches[m][1], p3 = matches[m][2], p4 = matches[m][3];
+
+            IntVar s1 = model.intVar(minSkill, maxSkill); model.element(s1, skillLevels, p1, 0).post();
+            IntVar s2 = model.intVar(minSkill, maxSkill); model.element(s2, skillLevels, p2, 0).post();
+            IntVar s3 = model.intVar(minSkill, maxSkill); model.element(s3, skillLevels, p3, 0).post();
+            IntVar s4 = model.intVar(minSkill, maxSkill); model.element(s4, skillLevels, p4, 0).post();
+
+            IntVar t1 = model.intVar(2 * minSkill, 2 * maxSkill);
+            IntVar t2 = model.intVar(2 * minSkill, 2 * maxSkill);
+            model.sum(new IntVar[]{s1, s2}, "=", t1).post();
+            model.sum(new IntVar[]{s3, s4}, "=", t2).post();
+
+            IntVar diff = model.intVar(0, 2 * (maxSkill - minSkill));
+            model.distance(t1, t2, "=", diff).post();
+            skillDiffs.add(diff);
+        }
+
+        // --- Summen ---
+        IntVar teamRepeatSum = model.intVar(0, teamRepeatViolations.size());
+        if (!teamRepeatViolations.isEmpty())
+            model.sum(teamRepeatViolations.toArray(new BoolVar[0]), "=", teamRepeatSum).post();
+
+        IntVar opponentRepeatSum = model.intVar(0, opponentRepeatViolations.size());
+        if (!opponentRepeatViolations.isEmpty())
+            model.sum(opponentRepeatViolations.toArray(new BoolVar[0]), "=", opponentRepeatSum).post();
+
+        IntVar mixedSum = model.intVar(0, mixedViolations.size());
+        if (!mixedViolations.isEmpty())
+            model.sum(mixedViolations.toArray(new BoolVar[0]), "=", mixedSum).post();
+
+        int maxSkillDiffPerMatch = 2 * (maxSkill - minSkill);
+        IntVar skillDiffSum = model.intVar(0, maxSkillDiffPerMatch * numMatches);
+        if (!skillDiffs.isEmpty())
+            model.sum(skillDiffs.toArray(new IntVar[0]), "=", skillDiffSum).post();
+
+        // --- Gewichte ---
+        int wTeamRepeat = 10_000;
+        int wOpponent   = 500;
+        int wMixed      = 50;
+        int wSkillDiff  = 200;
+
+        // --- Zielfunktion & dynamische Obergrenze ---
+        long maxObjLong =
+                1L * teamRepeatViolations.size() * wTeamRepeat +
+                        1L * opponentRepeatViolations.size() * wOpponent +
+                        1L * mixedViolations.size() * wMixed +
+                        1L * (maxSkillDiffPerMatch * numMatches) * wSkillDiff;
+
+        int maxObj = (maxObjLong > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) maxObjLong;
+
+        IntVar objective = model.intVar("objective", 0, Math.max(0, maxObj));
         model.scalar(
                 new IntVar[]{teamRepeatSum, opponentRepeatSum, mixedSum, skillDiffSum},
-                new int[]{wTeamRepeat, wOpponent, wMixed, wSkillDiff},
-                "=",
-                overallObjective
+                new int[]   {wTeamRepeat,   wOpponent,        wMixed,   wSkillDiff},
+                "=", objective
         ).post();
+        model.setObjective(Model.MINIMIZE, objective);
 
-        model.setObjective(Model.MINIMIZE, overallObjective);
-
-        // Solver starten und Runde zusammenbauen
+        // --- Lösen ---
         Runde runde = new Runde(rundenNummer);
         if (model.getSolver().solve()) {
-            for (int t = 0; t < numTeams; t++) {
-                Spieler s1 = spielerInRunde.get(matches[t][0].getValue());
-                Spieler s2 = spielerInRunde.get(matches[t][1].getValue());
-                Spieler s3 = spielerInRunde.get(matches[t][2].getValue());
-                Spieler s4 = spielerInRunde.get(matches[t][3].getValue());
+            for (int m = 0; m < numMatches; m++) {
+                Spieler s1 = spielerInRunde.get(matches[m][0].getValue());
+                Spieler s2 = spielerInRunde.get(matches[m][1].getValue());
+                Spieler s3 = spielerInRunde.get(matches[m][2].getValue());
+                Spieler s4 = spielerInRunde.get(matches[m][3].getValue());
 
                 Team team1 = new Team(s1, s2);
                 Team team2 = new Team(s3, s4);
 
-                // Historie aktualisieren
-                s1.getPartnerHistorie().add(s2);
-                s2.getPartnerHistorie().add(s1);
-                s3.getPartnerHistorie().add(s4);
-                s4.getPartnerHistorie().add(s3);
+                // Historie pflegen
+                s1.getPartnerHistorie().add(s2); s2.getPartnerHistorie().add(s1);
+                s3.getPartnerHistorie().add(s4); s4.getPartnerHistorie().add(s3);
 
-                s1.addGegner(s3);
-                s1.addGegner(s4);
-                s2.addGegner(s3);
-                s2.addGegner(s4);
-                s3.addGegner(s1);
-                s3.addGegner(s2);
-                s4.addGegner(s1);
-                s4.addGegner(s2);
+                s1.addGegner(s3); s1.addGegner(s4);
+                s2.addGegner(s3); s2.addGegner(s4);
+                s3.addGegner(s1); s3.addGegner(s2);
+                s4.addGegner(s1); s4.addGegner(s2);
 
-                Match match = new Match(team1, team2);
-                runde.addMatch(match);
+                runde.addMatch(new Match(team1, team2));
             }
         } else {
             System.out.println("Keine Lösung für Runde " + rundenNummer + " gefunden.");
+            return null;
         }
 
         return runde;

@@ -4,49 +4,36 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Turnier {
-    private List<Spieler> spielerListe;
-    private int anzahlPlaetze;
-    private int rundenAnzahl;
-    private List<Runde> runden;
+    private final List<Spieler> spielerListe;
+    private final int anzahlPlaetze;
+    private final int rundenAnzahl;
+    private final List<Runde> runden;
 
     public Turnier(List<Spieler> spielerListe, int anzahlPlaetze, int rundenAnzahl) {
-        this.spielerListe = spielerListe;
+        this.spielerListe = new ArrayList<>(spielerListe);
         this.anzahlPlaetze = anzahlPlaetze;
         this.rundenAnzahl = rundenAnzahl;
         this.runden = new ArrayList<>();
     }
 
-    public List<Spieler> getSpielerListe() {
-        return spielerListe;
-    }
+    public List<Spieler> getSpielerListe() { return spielerListe; }
+    public int getAnzahlPlaetze() { return anzahlPlaetze; }
+    public int getRundenAnzahl() { return rundenAnzahl; }
+    public List<Runde> getRunden() { return runden; }
 
-    public int getAnzahlPlaetze() {
-        return anzahlPlaetze;
-    }
-
-    public int getRundenAnzahl() {
-        return rundenAnzahl;
-    }
-
-    public List<Runde> getRunden() {
-        return runden;
-    }
-
-    /**
-     * Erstellen des Turnierplans mithilfe des PausenManagers und TournamentSolvers.
-     */
+    /** Erzeugt den Turnierplan. */
     public void turnierPlanErstellen() {
         PausenManager pausenManager = new PausenManager(this.spielerListe, this.rundenAnzahl, this.anzahlPlaetze);
         List<List<Spieler>> rundenPlan = pausenManager.planeRunden();
 
         TournamentSolver solver = new TournamentSolver();
-        for (int rundeNummer = 0; rundeNummer < rundenPlan.size(); rundeNummer++) {
-            List<Spieler> spielerInRunde = rundenPlan.get(rundeNummer);
-            Runde optimierteRunde = solver.solveRunde(rundeNummer + 1, spielerInRunde);
-            if (optimierteRunde != null) {
-                this.runden.add(optimierteRunde);
+        for (int i = 0; i < rundenPlan.size(); i++) {
+            List<Spieler> spielerInRunde = rundenPlan.get(i);
+            Runde optimiert = solver.solveRunde(i + 1, spielerInRunde);
+            if (optimiert != null) {
+                this.runden.add(optimiert);
             } else {
-                System.out.println("Keine gültige Planung für Runde " + (rundeNummer + 1) + " gefunden.");
+                System.out.println("Keine gültige Planung für Runde " + (i + 1) + " gefunden.");
             }
         }
     }
@@ -54,9 +41,7 @@ public class Turnier {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (Runde runde : runden) {
-            sb.append(runde.toString()).append("\n");
-        }
+        for (Runde r : runden) sb.append(r).append("\n");
         return sb.toString();
     }
 }
