@@ -1,384 +1,293 @@
 package com.example.roundrobintunier;
 
-import javafx.animation.*;
+import javafx.animation.TranslateTransition;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.print.PrinterJob;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
-import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.ToolBar;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import javafx.scene.input.Dragboard;
-import javafx.scene.input.TransferMode;
-import javafx.scene.input.ClipboardContent;
-import javafx.scene.layout.ColumnConstraints;
-
-import javafx.print.PrinterJob;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.*;
-import java.net.URL;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.HashMap;
 
 public class App extends Application {
 
-    // neu: Referenz auf die Stage (für Dialog-Owner & Drucken)
-    private Stage primary;
+    private Stage primaryStage;
+    private boolean isDarkMode = false;
+    private Scene scene;
 
-    private LocalTime startTime;
-    private int spieldauer;
-    private int pausenlaenge;
-    private List<List<Spieler>> pausenProRunde;
-
+    // Model
     private List<Spieler> spielerListe = new ArrayList<>();
     private Turnier aktuellesTurnier;
-
-    // Score pro Spieler (für die Rangliste)
+    private List<List<Spieler>> pausenProRunde;
     private Map<Spieler, Integer> scoreboardMap = new HashMap<>();
-    // Gewinner pro Match (optional)
-    private Map<Match, Team> matchWinnerMap = new HashMap<>();
 
-    // UI-Felder
-    private TextField nameField;
+    // UI Components
+    private TextField nameField, spielstaerkeField, plaetzeField, rundenField;
+    private TextField startzeitField, spieldauerField, pausenlaengeField;
     private ComboBox<String> geschlechtComboBox;
-    private TextField spielstaerkeField; // Eingabe der Spielstärke
-    private TextField plaetzeField;
-    private TextField rundenField;
-    private TextField startzeitField;
-    private TextField spieldauerField;
-    private TextField pausenlaengeField;
-
+    private CheckBox mixedCheckBox; // NEU
     private VBox spielerListeVBox;
     private GridPane spielplanGrid;
-
     private VBox ranglistenVBox;
-    private Tab tabRangliste;
-
-    // Status-Label für Feedback
     private Label statusLabel;
+    private SVGPath iconRemove;
+
 
     @Override
-    public void start(Stage primaryStage) {
-        this.primary = primaryStage;
-        primaryStage.setTitle("Round Robin - Großzügiges Layout + Korrektes Punktesystem");
+    public void start(Stage stage) {
+        this.primaryStage = stage;
+        primaryStage.setTitle("Round Robin Turnierplaner");
 
-        // ---------------------------
-        // Menüleiste + Datei-Menü mit Shortcuts
-        // ---------------------------
-        MenuBar menuBar = new MenuBar();
-        menuBar.getStyleClass().add("menu-bar");
+        // --- ICONS (SVG Paths for a modern look) ---
+        iconRemove = createIcon("M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z");
+        SVGPath iconAdd = createIcon("M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z");
+        SVGPath iconCreate = createIcon("M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1z M5 8a3 3 0 1 1 6 0 3 3 0 0 1-6 0z");
+        SVGPath iconSave = createIcon("M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L6.354 8.146a.5.5 0 0 0-.708.708l2 2z");
+        SVGPath iconUpload = createIcon("M.5 9.9a.5.5 0 0 1 .5-.5h2.5a.5.5 0 0 1 0 1H1v1.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10.5h-2a.5.5 0 0 1 0-1H15a.5.5 0 0 1 .5.5v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5zm6.354-7.854a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 3.707V11.5a.5.5 0 0 1-1 0V3.707L6.354 5.854a.5.5 0 1 1-.708-.708l2-2z");
+        SVGPath iconPrint = createIcon("M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8zm2 2h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z");
+        SVGPath iconDarkMode = createIcon("M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z");
 
-        Menu menuDatei = new Menu("Datei");
-
-        MenuItem miSpeichernExcel = new MenuItem("Speichern als Excel…");
-        miSpeichernExcel.setOnAction(e -> exportToExcel());
-        miSpeichernExcel.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN)); // Ctrl/Cmd+Shift+S
-
-        MenuItem miSpeichernCSV = new MenuItem("Speichern als CSV…");
-        miSpeichernCSV.setOnAction(e -> exportToCSV());
-        miSpeichernCSV.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+S
-
-        MenuItem miDrucken = new MenuItem("Drucken…");
-        miDrucken.setOnAction(e -> printPlan());
-        miDrucken.setAccelerator(new KeyCodeCombination(KeyCode.P, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+P
-
-        MenuItem miBeenden = new MenuItem("Beenden");
-        miBeenden.setOnAction(e -> primary.close());
-        miBeenden.setAccelerator(new KeyCodeCombination(KeyCode.Q, KeyCombination.SHORTCUT_DOWN)); // Ctrl/Cmd+Q
-
-        menuDatei.getItems().addAll(miSpeichernExcel, miSpeichernCSV, new SeparatorMenuItem(), miDrucken, new SeparatorMenuItem(), miBeenden);
-
-        Menu menuExtras = new Menu("Extras");
-        MenuItem miZusammenfassung = new MenuItem("Zusammenfassung");
-        miZusammenfassung.setOnAction(e -> zeigeZusammenfassung());
-        menuExtras.getItems().add(miZusammenfassung);
-
-        Menu menuHilfe = new Menu("Hilfe");
-        MenuItem miInfo = new MenuItem("Über dieses Programm");
-        miInfo.setOnAction(e -> zeigeInfo());
-        menuHilfe.getItems().add(miInfo);
-
-        menuBar.getMenus().addAll(menuDatei, menuExtras, menuHilfe);
-
-        // sichtbare Toolbar-Buttons
-        ToolBar toolBar = new ToolBar();
-        Button btnSaveCSV = new Button("CSV speichern");
-        btnSaveCSV.setOnAction(e -> exportToCSV());
-        Button btnSaveExcel = new Button("Excel speichern");
-        btnSaveExcel.setOnAction(e -> exportToExcel());
-        Button btnPrint = new Button("Drucken");
+        // --- HEADER ---
+        Button btnUpload = createIconButton("Importieren", iconUpload);
+        btnUpload.setOnAction(e -> importFromExcel());
+        Button btnSave = createIconButton("Speichern", iconSave);
+        btnSave.setOnAction(e -> exportToExcel());
+        Button btnPrint = createIconButton("Drucken", iconPrint);
         btnPrint.setOnAction(e -> printPlan());
-        Button btnExit = new Button("Beenden");
-        btnExit.setOnAction(e -> primary.close());
-        toolBar.getItems().addAll(btnSaveCSV, btnSaveExcel, btnPrint, new Separator(), btnExit);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        ToggleButton darkModeToggle = new ToggleButton();
+        darkModeToggle.setGraphic(iconDarkMode);
+        darkModeToggle.getStyleClass().add("icon-button");
+        darkModeToggle.setOnAction(e -> toggleDarkMode(darkModeToggle.isSelected()));
+        HBox header = new HBox(10, btnUpload, btnSave, btnPrint, spacer, darkModeToggle);
+        header.setPadding(new Insets(10));
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("header");
 
-        // ---------------------------
-        // Linke Sidebar
-        // ---------------------------
-        VBox sidebar = new VBox(20);
-        sidebar.setPadding(new Insets(20));
-        sidebar.getStyleClass().add("sidebar");
-        sidebar.setPrefWidth(300);
-
+        // --- LEFT COLUMN: PLAYER MANAGEMENT ---
         Label lblAdd = new Label("Neuen Spieler hinzufügen");
-        lblAdd.getStyleClass().add("label-title");
-
-        nameField = new TextField();
-        nameField.setPromptText("Spielername");
-        nameField.getStyleClass().add("text-field");
-
+        lblAdd.getStyleClass().add("h2");
+        nameField = createStyledTextField("Spielername");
         geschlechtComboBox = new ComboBox<>();
         geschlechtComboBox.getItems().addAll("M", "F");
         geschlechtComboBox.setPromptText("Geschlecht");
-        geschlechtComboBox.getStyleClass().add("combo-box");
-
-        spielstaerkeField = new TextField();
-        spielstaerkeField.setPromptText("Spielstärke (1-10)");
-        spielstaerkeField.getStyleClass().add("text-field");
-
-        Button btnAdd = new Button("Hinzufügen");
-        btnAdd.getStyleClass().add("button");
+        spielstaerkeField = createStyledTextField("Spielstärke (1-10)");
+        Button btnAdd = createIconButton("Hinzufügen", iconAdd);
         btnAdd.setOnAction(e -> addSpieler());
-        btnAdd.setTooltip(new Tooltip("Spieler zur Liste hinzufügen"));
-
+        VBox addPlayerBox = new VBox(15, lblAdd, nameField, geschlechtComboBox, spielstaerkeField, btnAdd);
+        addPlayerBox.getStyleClass().add("card");
         Label lblListe = new Label("Aktuelle Spieler");
-        lblListe.getStyleClass().add("label-title");
-
+        lblListe.getStyleClass().add("h2");
         spielerListeVBox = new VBox(5);
         ScrollPane scrollSpieler = new ScrollPane(spielerListeVBox);
         scrollSpieler.setFitToWidth(true);
-        scrollSpieler.setPrefHeight(400);
-        scrollSpieler.setPrefWidth(280);
-        scrollSpieler.setStyle("-fx-background: transparent;");
+        VBox leftColumn = new VBox(20, addPlayerBox, lblListe, scrollSpieler);
+        leftColumn.setPadding(new Insets(10));
 
-        // Dark Mode Toggle
-        ToggleButton darkModeToggle = new ToggleButton("Dark Mode");
-        darkModeToggle.getStyleClass().add("button");
-        darkModeToggle.setSelected(false);
-        darkModeToggle.setOnAction(e -> toggleDarkMode(darkModeToggle.isSelected()));
-        darkModeToggle.setTooltip(new Tooltip("Umschalten zwischen Light und Dark Mode"));
-
-        sidebar.getChildren().addAll(
-                lblAdd, nameField, geschlechtComboBox, spielstaerkeField, btnAdd,
-                new Separator(), lblListe, scrollSpieler,
-                new Separator(), darkModeToggle
-        );
-
-        // ---------------------------
-        // Tabs: Parameter, Turnierplan, Rangliste
-        // ---------------------------
+        // --- RIGHT COLUMN: TABS ---
         TabPane centerTabPane = new TabPane();
         centerTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        centerTabPane.getStyleClass().add("center-tab-pane");
-
-        // Tab 1: Parameter
-        Tab tabParam = new Tab("Parameter");
-        VBox paramBox = new VBox(15);
-        paramBox.setPadding(new Insets(20));
-
         Label lblParam = new Label("Turnierparameter");
-        lblParam.getStyleClass().add("label-title");
+        lblParam.getStyleClass().add("h2");
+        plaetzeField = createStyledTextField("Anzahl Plätze");
+        rundenField = createStyledTextField("Anzahl Runden");
+        startzeitField = createStyledTextField("Startzeit (HH:MM)", "09:00");
+        spieldauerField = createStyledTextField("Spieldauer (Minuten)", "35");
+        pausenlaengeField = createStyledTextField("Pausenlänge (Minuten)", "10");
 
-        plaetzeField = new TextField();
-        plaetzeField.setPromptText("Anzahl Plätze");
-        plaetzeField.getStyleClass().add("text-field");
+        // NEU: Checkbox für Mixed-Modus
+        mixedCheckBox = new CheckBox("Mixed-Doppel erzwingen");
 
-        rundenField = new TextField();
-        rundenField.setPromptText("Anzahl Runden");
-        rundenField.getStyleClass().add("text-field");
-
-        startzeitField = new TextField();
-        startzeitField.setPromptText("Startzeit (HH:MM)");
-        startzeitField.setText("09:00");
-        startzeitField.getStyleClass().add("text-field");
-
-        spieldauerField = new TextField();
-        spieldauerField.setPromptText("Spieldauer (Minuten)");
-        spieldauerField.setText("35");
-        spieldauerField.getStyleClass().add("text-field");
-
-        pausenlaengeField = new TextField();
-        pausenlaengeField.setPromptText("Pausenlänge (Minuten)");
-        pausenlaengeField.setText("10");
-        pausenlaengeField.getStyleClass().add("text-field");
-
-        Button btnErstellen = new Button("Plan erstellen");
-        btnErstellen.getStyleClass().add("button");
+        Button btnErstellen = createIconButton("Turnierplan erstellen", iconCreate);
         btnErstellen.setOnAction(e -> turnierPlanErstellen());
-        btnErstellen.setTooltip(new Tooltip("Turnierplan erstellen"));
-
-        Button btnAnimationDemo = new Button("Animation-Demo");
-        btnAnimationDemo.getStyleClass().add("button");
-        btnAnimationDemo.setOnAction(e -> demoFadeEffect(btnAnimationDemo));
-        btnAnimationDemo.setTooltip(new Tooltip("Demo der Animationen"));
-
-        paramBox.getChildren().addAll(
-                lblParam,
-                plaetzeField,
-                rundenField,
-                startzeitField,
-                spieldauerField,
-                pausenlaengeField,
-                btnErstellen,
-                btnAnimationDemo
-        );
-        tabParam.setContent(paramBox);
-
-        // Tab 2: Turnierplan
-        Tab tabPlan = new Tab("Turnierplan");
+        VBox paramBox = new VBox(15, lblParam, plaetzeField, rundenField, startzeitField, spieldauerField, pausenlaengeField, mixedCheckBox, btnErstellen);
+        paramBox.setPadding(new Insets(20));
+        Tab tabParam = new Tab("Einstellungen", paramBox);
         spielplanGrid = new GridPane();
-        spielplanGrid.getStyleClass().add("grid-pane");
-        spielplanGrid.setGridLinesVisible(true); // Debug
-
+        spielplanGrid.setHgap(10);
+        spielplanGrid.setVgap(10);
         ScrollPane planScroll = new ScrollPane(spielplanGrid);
         planScroll.setFitToWidth(false);
-        planScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        planScroll.setPrefHeight(600);
-        planScroll.setPrefWidth(1200);
-        planScroll.setStyle("-fx-background: transparent;");
-        tabPlan.setContent(planScroll);
-
-        // Tab 3: Rangliste
-        tabRangliste = new Tab("Rangliste");
-        VBox ranglistenContainer = new VBox(10);
-        ranglistenContainer.setPadding(new Insets(20));
-
-        Label ranglistenBanner = new Label("Rangliste");
-        ranglistenBanner.getStyleClass().add("ranglisten-banner");
-
+        Tab tabPlan = new Tab("Turnierplan", planScroll);
         ranglistenVBox = new VBox(5);
-        ranglistenVBox.getStyleClass().add("ranglistenVBox");
         ScrollPane rangScroll = new ScrollPane(ranglistenVBox);
         rangScroll.setFitToWidth(true);
-        rangScroll.setPrefHeight(350);
-        rangScroll.setPrefWidth(400);
-        rangScroll.setStyle("-fx-background: transparent;");
-
-        ranglistenContainer.getChildren().addAll(ranglistenBanner, rangScroll);
-        tabRangliste.setContent(ranglistenContainer);
-
+        ranglistenVBox.getStyleClass().add("card");
+        Tab tabRangliste = new Tab("Rangliste", rangScroll);
         centerTabPane.getTabs().addAll(tabParam, tabPlan, tabRangliste);
 
-        // ---------------------------
-        // Status-Label unten rechts
-        // ---------------------------
-        statusLabel = new Label("Bereit");
+        // --- MAIN LAYOUT ---
+        GridPane mainGrid = new GridPane();
+        mainGrid.setHgap(20);
+        mainGrid.add(leftColumn, 0, 0);
+        mainGrid.add(centerTabPane, 1, 0);
+        ColumnConstraints col1 = new ColumnConstraints();
+        col1.setPercentWidth(35);
+        ColumnConstraints col2 = new ColumnConstraints();
+        col2.setPercentWidth(65);
+        mainGrid.getColumnConstraints().addAll(col1, col2);
+
+        // --- STATUS BAR ---
+        statusLabel = new Label("Bereit.");
         statusLabel.getStyleClass().add("status-label");
-        statusLabel.setAlignment(Pos.CENTER_RIGHT);
+        HBox statusBar = new HBox(statusLabel);
+        statusBar.setPadding(new Insets(5, 10, 5, 10));
+        statusBar.setAlignment(Pos.CENTER_RIGHT);
 
-        // ---------------------------
-        // Hauptlayout
-        // ---------------------------
+        // --- ROOT PANE ---
         BorderPane root = new BorderPane();
-        // Menü + Toolbar oben stapeln
-        VBox topBox = new VBox(menuBar, toolBar);
-        root.setTop(topBox);
+        root.setTop(header);
+        root.setCenter(mainGrid);
+        root.setBottom(statusBar);
 
-        root.setLeft(sidebar);
-        root.setCenter(centerTabPane);
-        BorderPane.setMargin(centerTabPane, new Insets(10));
+        // --- SCENE & STAGE SETUP ---
+        this.scene = new Scene(root, 1400, 900);
+        this.scene.getStylesheets().add(getClass().getResource("/com/example/roundrobintunier/modern-light.css").toExternalForm());
 
-        Label madeByLabel = new Label("Made by Carlo Deutschmann");
-        madeByLabel.getStyleClass().add("made-by-label");
-
-        HBox bottomBox = new HBox(10, madeByLabel, statusLabel);
-        bottomBox.setPadding(new Insets(5));
-        bottomBox.setAlignment(Pos.BOTTOM_LEFT);
-        bottomBox.setStyle("-fx-background-color: transparent;");
-
-        root.setBottom(bottomBox);
-
-        Scene scene = new Scene(root, 1300, 800);
-        String lightCssPath = "/com/example/roundrobintunier/styles.css";
-        URL lightCssUrl = getClass().getResource(lightCssPath);
-        if (lightCssUrl != null) {
-            scene.getStylesheets().add(lightCssUrl.toExternalForm());
-        } else {
-            System.err.println("Light Mode CSS nicht gefunden: " + lightCssPath);
-        }
-
-        primaryStage.setScene(scene);
-        primaryStage.centerOnScreen();
+        primaryStage.setScene(this.scene);
+        primaryStage.setMaximized(true);
         primaryStage.show();
     }
 
-    // SPIELER
+    private void importFromExcel() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Excel Turnierplan importieren");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file == null) {
+            updateStatus("Import abgebrochen.", "info-label");
+            return;
+        }
+        try (Workbook wb = new XSSFWorkbook(new FileInputStream(file))) {
+            Sheet paramSheet = wb.getSheet("Parameter");
+            if (paramSheet == null) throw new IOException("Blatt 'Parameter' nicht gefunden.");
+            plaetzeField.setText(paramSheet.getRow(0).getCell(1).getStringCellValue());
+            rundenField.setText(paramSheet.getRow(1).getCell(1).getStringCellValue());
+            startzeitField.setText(paramSheet.getRow(2).getCell(1).getStringCellValue());
+            spieldauerField.setText(paramSheet.getRow(3).getCell(1).getStringCellValue());
+            pausenlaengeField.setText(paramSheet.getRow(4).getCell(1).getStringCellValue());
+
+            Sheet spielerSheet = wb.getSheet("Spieler");
+            if (spielerSheet == null) throw new IOException("Blatt 'Spieler' nicht gefunden.");
+            spielerListe.clear();
+            for (int i = 1; i <= spielerSheet.getLastRowNum(); i++) {
+                Row row = spielerSheet.getRow(i);
+                if (row == null || row.getCell(0) == null) continue;
+                String name = row.getCell(0).getStringCellValue();
+                String geschlecht = row.getCell(1).getStringCellValue();
+                int staerke = (int) row.getCell(2).getNumericCellValue();
+                spielerListe.add(new Spieler(name, geschlecht, staerke));
+            }
+            aktualisiereSpielerListe();
+            turnierPlanErstellen();
+            updateStatus("Turnierplan erfolgreich aus '" + file.getName() + "' importiert.", "success-label");
+        } catch (Exception e) {
+            showErrorAlert("Fehler beim Importieren der Excel-Datei: \n" + e.getMessage());
+            updateStatus("Import fehlgeschlagen.", "error-label");
+        }
+    }
+
+    private SVGPath createIcon(String path) {
+        SVGPath svg = new SVGPath();
+        svg.setContent(path);
+        svg.getStyleClass().add("icon");
+        return svg;
+    }
+
+    private Button createIconButton(String text, SVGPath icon) {
+        Button btn = new Button(text, icon);
+        btn.setContentDisplay(ContentDisplay.LEFT);
+        btn.setGraphicTextGap(8);
+        return btn;
+    }
+
+    private TextField createStyledTextField(String prompt) {
+        return createStyledTextField(prompt, "");
+    }
+
+    private TextField createStyledTextField(String prompt, String defaultValue) {
+        TextField tf = new TextField();
+        tf.setPromptText(prompt);
+        if (!defaultValue.isEmpty()) {
+            tf.setText(defaultValue);
+        }
+        return tf;
+    }
+
+    private void toggleDarkMode(boolean enable) {
+        isDarkMode = enable;
+        scene.getStylesheets().clear();
+        String css = isDarkMode ? "/com/example/roundrobintunier/modern-dark.css" : "/com/example/roundrobintunier/modern-light.css";
+        scene.getStylesheets().add(getClass().getResource(css).toExternalForm());
+        updateStatus(isDarkMode ? "Dark Mode aktiviert." : "Light Mode aktiviert.", "info-label");
+    }
+
+    private void shakeNode(javafx.scene.Node node) {
+        TranslateTransition tt = new TranslateTransition(Duration.millis(60), node);
+        tt.setFromX(0);
+        tt.setByX(8);
+        tt.setCycleCount(6);
+        tt.setAutoReverse(true);
+        tt.setOnFinished(e -> node.setTranslateX(0));
+        tt.play();
+    }
+
     private void addSpieler() {
         String name = nameField.getText().trim();
         String geschlecht = geschlechtComboBox.getValue();
         String spielstaerkeStr = spielstaerkeField.getText().trim();
-
-        boolean valid = true;
-        if (name.isEmpty()) {
-            if (!nameField.getStyleClass().contains("error")) {
-                nameField.getStyleClass().add("error");
-            }
+        if (name.isEmpty() || geschlecht == null || spielstaerkeStr.isEmpty()) {
+            showErrorAlert("Bitte alle Felder ausfüllen.");
             shakeNode(nameField);
-            valid = false;
-        } else {
-            nameField.getStyleClass().removeAll("error");
-        }
-
-        if (geschlecht == null) {
-            if (!geschlechtComboBox.getStyleClass().contains("error")) {
-                geschlechtComboBox.getStyleClass().add("error");
-            }
             shakeNode(geschlechtComboBox);
-            valid = false;
-        } else {
-            geschlechtComboBox.getStyleClass().removeAll("error");
-        }
-
-        int spielstaerke = 0;
-        try {
-            spielstaerke = Integer.parseInt(spielstaerkeStr);
-            if (spielstaerke < 1 || spielstaerke > 10) {
-                throw new NumberFormatException();
-            }
-            spielstaerkeField.getStyleClass().removeAll("error");
-        } catch (NumberFormatException e) {
-            if (!spielstaerkeField.getStyleClass().contains("error")) {
-                spielstaerkeField.getStyleClass().add("error");
-            }
             shakeNode(spielstaerkeField);
-            valid = false;
-        }
-
-        if (!valid) {
-            showErrorAlert("Bitte alle Felder korrekt ausfüllen!\nSpielstärke: Zahl zwischen 1 und 10");
             return;
         }
-
-        // Duplicate-Check
-        for (Spieler s : spielerListe) {
-            if (s.getName().equalsIgnoreCase(name)) {
-                showErrorAlert("Diesen Spieler gibt es bereits!");
-                shakeNode(nameField);
-                return;
-            }
+        int spielstaerke;
+        try {
+            spielstaerke = Integer.parseInt(spielstaerkeStr);
+            if (spielstaerke < 1 || spielstaerke > 10) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            showErrorAlert("Spielstärke muss eine Zahl zwischen 1 und 10 sein.");
+            shakeNode(spielstaerkeField);
+            return;
         }
-
+        if (spielerListe.stream().anyMatch(s -> s.getName().equalsIgnoreCase(name))) {
+            showErrorAlert("Ein Spieler mit diesem Namen existiert bereits.");
+            shakeNode(nameField);
+            return;
+        }
         Spieler neu = new Spieler(name, geschlecht, spielstaerke);
         spielerListe.add(neu);
-
         nameField.clear();
         geschlechtComboBox.setValue(null);
         spielstaerkeField.clear();
-
         aktualisiereSpielerListe();
         updateStatus("Spieler hinzugefügt: " + name, "success-label");
     }
@@ -392,843 +301,375 @@ public class App extends Application {
     }
 
     private HBox createSpielerRow(Spieler sp) {
-        HBox row = new HBox(5);
-        row.getStyleClass().add("spieler-item");
-        row.setAlignment(Pos.CENTER_LEFT);
-
-        // Anzeige: Name, Geschlecht und Spielstärke
         Label lbl = new Label(sp.getName() + " (" + sp.getGeschlecht() + ", Stärke: " + sp.getSpielstaerke() + ")");
-        lbl.getStyleClass().add("spieler-item-label");
-
-        Button btnRemove = new Button("Entf.");
+        lbl.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(lbl, Priority.ALWAYS);
+        Button btnRemove = new Button();
+        btnRemove.setGraphic(iconRemove);
         btnRemove.getStyleClass().add("remove-button");
-        btnRemove.setTooltip(new Tooltip("Spieler entfernen"));
         btnRemove.setOnAction(e -> {
             spielerListe.remove(sp);
             aktualisiereSpielerListe();
             updateStatus("Spieler entfernt: " + sp.getName(), "info-label");
         });
+        HBox row = new HBox(10, lbl, btnRemove);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("spieler-item");
 
-        row.getChildren().addAll(lbl, btnRemove);
-
-        // Drag-and-Drop-Funktionalität
         row.setOnDragDetected(event -> {
             Dragboard db = row.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
-            content.putString(sp.getName());
+            content.putString(String.valueOf(spielerListe.indexOf(sp)));
             db.setContent(content);
             event.consume();
         });
-
         row.setOnDragOver(event -> {
             if (event.getGestureSource() != row && event.getDragboard().hasString()) {
                 event.acceptTransferModes(TransferMode.MOVE);
             }
             event.consume();
         });
-
         row.setOnDragDropped(event -> {
             Dragboard db = event.getDragboard();
             boolean success = false;
             if (db.hasString()) {
-                String draggedName = db.getString();
-                Spieler draggedSpieler = findSpielerByName(draggedName);
-                if (draggedSpieler != null) {
-                    spielerListe.remove(draggedSpieler);
-                    int thisIndex = spielerListe.indexOf(sp);
+                int draggedIndex = Integer.parseInt(db.getString());
+                Spieler draggedSpieler = spielerListe.get(draggedIndex);
+                int thisIndex = spielerListe.indexOf(sp);
+                spielerListe.remove(draggedIndex);
+                if (draggedIndex < thisIndex) {
+                    spielerListe.add(thisIndex - 1, draggedSpieler);
+                } else {
                     spielerListe.add(thisIndex, draggedSpieler);
-                    aktualisiereSpielerListe();
-                    success = true;
-                    updateStatus("Spieler verschoben: " + draggedName, "info-label");
                 }
+                aktualisiereSpielerListe();
+                success = true;
+                updateStatus("Reihenfolge geändert.", "info-label");
             }
             event.setDropCompleted(success);
             event.consume();
         });
-
-        // Animation
-        row.setTranslateX(-50);
-        row.setOpacity(0);
-        FadeTransition fadeIn = new FadeTransition(Duration.millis(200), row);
-        fadeIn.setFromValue(0);
-        fadeIn.setToValue(1);
-
-        TranslateTransition translate = new TranslateTransition(Duration.millis(200), row);
-        translate.setFromX(-50);
-        translate.setToX(0);
-
-        ParallelTransition parallel = new ParallelTransition(fadeIn, translate);
-        parallel.play();
-
         return row;
     }
 
-    private Spieler findSpielerByName(String name) {
-        for (Spieler sp : spielerListe) {
-            if (sp.getName().equals(name)) {
-                return sp;
-            }
-        }
-        return null;
-    }
-
-    // TURNIER
     private void turnierPlanErstellen() {
-        int plaetze, runden;
+        int plaetze, runden, spieldauer, pausenlaenge;
+        LocalTime startTime;
+        boolean forceMixed = mixedCheckBox.isSelected();
+
         try {
             plaetze = Integer.parseInt(plaetzeField.getText());
             runden = Integer.parseInt(rundenField.getText());
-        } catch (NumberFormatException e) {
-            showErrorAlert("Bitte gültige Zahlen für Plätze und Runden eingeben!");
-            updateStatus("Fehler: Ungültige Eingaben für Plätze oder Runden.", "error-label");
-            return;
-        }
-        if (plaetze <= 0 || runden <= 0) {
-            showErrorAlert("Plätze und Runden müssen > 0 sein!");
-            updateStatus("Fehler: Plätze und Runden müssen größer als 0 sein.", "error-label");
+            spieldauer = Integer.parseInt(spieldauerField.getText());
+            pausenlaenge = Integer.parseInt(pausenlaengeField.getText());
+            startTime = LocalTime.parse(startzeitField.getText().trim(), DateTimeFormatter.ofPattern("HH:mm"));
+            if (plaetze <= 0 || runden <= 0 || spieldauer <= 0 || pausenlaenge < 0) {
+                throw new NumberFormatException("Werte müssen positiv sein.");
+            }
+        } catch (Exception e) {
+            showErrorAlert("Bitte gültige Zahlen für alle Turnierparameter eingeben.\nStartzeit im Format HH:MM.");
             return;
         }
         if (spielerListe.size() < 4) {
-            showErrorAlert("Mindestens 4 Spieler benötigt!");
-            updateStatus("Fehler: Mindestens 4 Spieler sind erforderlich.", "error-label");
+            showErrorAlert("Mindestens 4 Spieler werden für ein Turnier benötigt.");
             return;
         }
 
-        // Startzeit einlesen und Klassenfeld setzen
-        try {
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
-            this.startTime = LocalTime.parse(startzeitField.getText().trim(), fmt);
-        } catch (DateTimeParseException ex) {
-            showErrorAlert("Bitte Startzeit im Format HH:mm eingeben (z.B. 09:00)!");
-            updateStatus("Fehler: Ungültiges Startzeit-Format.", "error-label");
-            return;
-        }
+        spielerListe.forEach(Spieler::resetStats);
 
-        // Spieldauer und Pausenlänge einlesen und Klassenfelder setzen
-        try {
-            this.spieldauer = Integer.parseInt(spieldauerField.getText().trim());
-            this.pausenlaenge = Integer.parseInt(pausenlaengeField.getText().trim());
-        } catch (NumberFormatException ex) {
-            showErrorAlert("Bitte gültige Zahlen für Spieldauer und Pausenlänge eingeben!");
-            updateStatus("Fehler: Ungültige Eingaben für Spieldauer oder Pausenlänge.", "error-label");
-            return;
-        }
-        if (spieldauer <= 0 || pausenlaenge < 0) {
-            showErrorAlert("Spieldauer muss > 0 und Pausenlänge >= 0 sein!");
-            updateStatus("Fehler: Spieldauer muss größer als 0 und Pausenlänge mindestens 0 sein.", "error-label");
-            return;
-        }
-
-        // Reset der Spielerattribute
-        for (Spieler s : spielerListe) {
-            s.resetPausenAnzahl();
-            s.resetSpielAnzahl();
-            s.resetPartnerHistorie();
-            s.resetGegnerHistorie();
-        }
-
-        // PausenManager erstellen und rundenPlan sowie pausenProRunde setzen
         PausenManager pm = new PausenManager(spielerListe, runden, plaetze);
         List<List<Spieler>> rundenPlan = pm.planeRunden();
         this.pausenProRunde = pm.getPausenProRunde();
 
-        // Turnier erstellen und Solver anwenden
         Turnier turnier = new Turnier(spielerListe, plaetze, runden);
         TournamentSolver solver = new TournamentSolver();
-        for (int rundeNummer = 1; rundeNummer <= rundenPlan.size(); rundeNummer++) {
-            List<Spieler> spielerInRunde = rundenPlan.get(rundeNummer - 1);
-            Runde optimierteRunde = solver.solveRunde(rundeNummer, spielerInRunde);
+
+        for (int i = 0; i < rundenPlan.size(); i++) {
+            List<Spieler> spielerInRunde = rundenPlan.get(i);
+
+            // NEU: Prüfung für Mixed-Modus
+            if(forceMixed) {
+                long maleCount = spielerInRunde.stream().filter(s -> "M".equals(s.getGeschlecht())).count();
+                long femaleCount = spielerInRunde.stream().filter(s -> "F".equals(s.getGeschlecht())).count();
+                if (maleCount != femaleCount) {
+                    showErrorAlert("Fehler in Runde " + (i + 1) + ": Für den Mixed-Modus muss die Anzahl der männlichen (" + maleCount + ") und weiblichen (" + femaleCount + ") Spieler in der Runde gleich sein.");
+                    return; // Breche die Erstellung ab
+                }
+            }
+
+            Runde optimierteRunde = solver.solveRunde(i + 1, spielerInRunde, forceMixed);
             if (optimierteRunde != null) {
                 turnier.getRunden().add(optimierteRunde);
+            } else {
+                // Optional: Abbruch, wenn eine Runde nicht gelöst werden kann
+                showErrorAlert("Fehler: Für Runde " + (i+1) + " konnte keine gültige Paarung gefunden werden. Überprüfen Sie die Spieler und den Mixed-Modus.");
+                return;
             }
         }
         this.aktuellesTurnier = turnier;
 
-        // Neues Scoreboard initialisieren
         scoreboardMap.clear();
-        for (Spieler sp : spielerListe) {
-            scoreboardMap.put(sp, 0);
-        }
-        matchWinnerMap.clear();
+        spielerListe.forEach(sp -> scoreboardMap.put(sp, 0));
 
-        // Anzeige: Turnierplan im Grid, Rangliste und Status aktualisieren
-        anzeigeTurnierPlanImGrid(turnier, this.startTime, this.spieldauer, this.pausenlaenge, this.pausenProRunde);
+        anzeigeTurnierPlanImGrid(startTime, spieldauer, pausenlaenge);
         updateRanglisteUI();
-        updateStatus("Turnierplan erstellt.", "success-label");
+        updateStatus("Turnierplan erfolgreich erstellt.", "success-label");
     }
 
-    /**
-     * Zeigt den Turnierplan zusammen mit den pausierenden Spielern.
-     */
-    private void anzeigeTurnierPlanImGrid(Turnier turnier,
-                                          LocalTime startTime,
-                                          int spieldauer,
-                                          int pausenlaenge,
-                                          List<List<Spieler>> pausenProRunde) {
-
+    private void anzeigeTurnierPlanImGrid(LocalTime startTime, int spieldauer, int pausenlaenge) {
         spielplanGrid.getChildren().clear();
         spielplanGrid.getColumnConstraints().clear();
         spielplanGrid.getRowConstraints().clear();
 
-        int anzahlPlaetze = turnier.getAnzahlPlaetze();
-        int rundenAnzahl = turnier.getRundenAnzahl();
+        int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
 
-        // Spalte 0 (Zeit) + N x Matchspalten + 1 x Pausenspalte
-        for (int col = 0; col < anzahlPlaetze + 2; col++) {
-            ColumnConstraints cc = new ColumnConstraints();
-            if (col == 0) {
-                cc.setMinWidth(80);
-                cc.setPrefWidth(80);
-            } else if (col <= anzahlPlaetze) {
-                cc.setMinWidth(340);
-                cc.setPrefWidth(340);
-            } else {
-                cc.setMinWidth(180);
-                cc.setPrefWidth(180);
-            }
-            spielplanGrid.getColumnConstraints().add(cc);
+        ColumnConstraints timeCol = new ColumnConstraints();
+        timeCol.setPrefWidth(70);
+        spielplanGrid.getColumnConstraints().add(timeCol);
+
+        for (int i = 0; i < anzahlPlaetze; i++) {
+            ColumnConstraints platzCol = new ColumnConstraints();
+            platzCol.setHgrow(Priority.ALWAYS);
+            platzCol.setMinWidth(250);
+            spielplanGrid.getColumnConstraints().add(platzCol);
         }
 
-        Label timeHeader = new Label("Zeit");
-        timeHeader.getStyleClass().add("label-time");
-        timeHeader.setTooltip(new Tooltip("Startzeit jeder Runde"));
-        spielplanGrid.add(timeHeader, 0, 0);
+        ColumnConstraints pauseCol = new ColumnConstraints();
+        pauseCol.setPrefWidth(150);
+        spielplanGrid.getColumnConstraints().add(pauseCol);
 
+        spielplanGrid.add(createHeaderLabel("Zeit"), 0, 0);
         for (int p = 1; p <= anzahlPlaetze; p++) {
-            Label platzLabel = new Label("Platz " + p);
-            platzLabel.getStyleClass().add("label-platz");
-            platzLabel.setTooltip(new Tooltip("Spiele auf Platz " + p));
-            spielplanGrid.add(platzLabel, p, 0);
+            spielplanGrid.add(createHeaderLabel("Platz " + p), p, 0);
         }
+        spielplanGrid.add(createHeaderLabel("Pausen"), anzahlPlaetze + 1, 0);
 
-        Label pauseColHeader = new Label("Pausierende\nSpieler");
-        pauseColHeader.getStyleClass().add("label-platz");
-        pauseColHeader.setTooltip(new Tooltip("Spieler, die diese Runde nicht spielen"));
-        spielplanGrid.add(pauseColHeader, anzahlPlaetze + 1, 0);
+        LocalTime rundenZeit = startTime;
+        for (int i = 0; i < aktuellesTurnier.getRundenAnzahl(); i++) {
+            int rowIdx = i + 1;
+            Label zeitLabel = new Label(rundenZeit.format(DateTimeFormatter.ofPattern("HH:mm")));
+            zeitLabel.getStyleClass().add("time-label");
+            spielplanGrid.add(zeitLabel, 0, rowIdx);
 
-        int startZeitMin = startTime.toSecondOfDay() / 60;
-
-        for (int rundeNummer = 1; rundeNummer <= rundenAnzahl; rundeNummer++) {
-
-            int hh = startZeitMin / 60;
-            int mm = startZeitMin % 60;
-            String zeit = String.format("%02d:%02d", hh, mm);
-
-            int zeilenIndex = (rundeNummer * 2) - 1;
-            Label zeitLabel = new Label(zeit);
-            zeitLabel.getStyleClass().add("label-time");
-            zeitLabel.setTooltip(new Tooltip("Runde " + rundeNummer + " startet um " + zeit));
-            spielplanGrid.add(zeitLabel, 0, zeilenIndex);
-
-            Runde runde = turnier.getRunden().get(rundeNummer - 1);
-            List<Match> spiele = runde.getSpiele();
-
-            for (int platz = 1; platz <= anzahlPlaetze; platz++) {
-                int matchIndex = platz - 1;
-                if (matchIndex < spiele.size()) {
-                    Match m = spiele.get(matchIndex);
-                    VBox matchCard = new VBox(8);
-                    matchCard.getStyleClass().add("match-card");
-
-                    Label lblMatch = new Label(m.toString());
-                    lblMatch.getStyleClass().add("match-card-text");
-                    lblMatch.setWrapText(true);
-                    lblMatch.setTooltip(new Tooltip(m.toString()));
-
-                    HBox scoreBox = new HBox(5);
-                    TextField tfTeam1 = new TextField();
-                    tfTeam1.setPromptText("Team1");
-                    TextField tfTeam2 = new TextField();
-                    tfTeam2.setPromptText("Team2");
-
-                    MatchResult oldRes = m.getResult();
-                    if (oldRes != null) {
-                        tfTeam1.setText(String.valueOf(oldRes.getTeam1Score()));
-                        tfTeam2.setText(String.valueOf(oldRes.getTeam2Score()));
-                    }
-
-                    tfTeam1.textProperty().addListener((obs, oldVal, newVal) -> {
-                        updateMatchResult(m, tfTeam1, tfTeam2);
-                    });
-                    tfTeam2.textProperty().addListener((obs, oldVal, newVal) -> {
-                        updateMatchResult(m, tfTeam1, tfTeam2);
-                    });
-
-                    scoreBox.getChildren().addAll(tfTeam1, new Label(":"), tfTeam2);
-                    matchCard.getChildren().addAll(lblMatch, scoreBox);
-                    spielplanGrid.add(matchCard, platz, zeilenIndex);
-
+            Runde runde = aktuellesTurnier.getRunden().get(i);
+            for (int p = 0; p < anzahlPlaetze; p++) {
+                if (p < runde.getSpiele().size()) {
+                    Match match = runde.getSpiele().get(p);
+                    spielplanGrid.add(createMatchCard(match), p + 1, rowIdx);
                 } else {
-                    Label lblLeer = new Label("—");
-                    lblLeer.getStyleClass().add("match-empty");
-                    spielplanGrid.add(lblLeer, platz, zeilenIndex);
+                    Label emptyLabel = new Label("—");
+                    GridPane.setFillWidth(emptyLabel, true);
+                    emptyLabel.setMaxWidth(Double.MAX_VALUE);
+                    emptyLabel.setAlignment(Pos.CENTER);
+                    spielplanGrid.add(emptyLabel, p + 1, rowIdx);
                 }
             }
 
-            List<Spieler> pausierendeSpieler = pausenProRunde.get(rundeNummer - 1);
-            StringBuilder sb = new StringBuilder("Pause:\n");
-            for (Spieler sp : pausierendeSpieler) {
-                sb.append(sp.getName()).append("\n");
-            }
-            Label lblPausiert = new Label(sb.toString());
-            lblPausiert.getStyleClass().add("pause-players-label");
-            lblPausiert.setWrapText(true);
-            lblPausiert.setTooltip(new Tooltip(sb.toString()));
-
-            spielplanGrid.add(lblPausiert, anzahlPlaetze + 1, zeilenIndex);
-
-            if (pausenlaenge > 0) {
-                Label pauseLabel = new Label("Pause (" + pausenlaenge + " Min)");
-                pauseLabel.getStyleClass().add("pause-label");
-                spielplanGrid.add(pauseLabel, 0, rundeNummer * 2, anzahlPlaetze + 2, 1);
-                startZeitMin += (spieldauer + pausenlaenge);
+            List<Spieler> pausierer = pausenProRunde.get(i);
+            VBox pausenBox = new VBox(2);
+            pausenBox.getStyleClass().add("pausen-box");
+            if (pausierer.isEmpty()) {
+                pausenBox.getChildren().add(new Label("-"));
             } else {
-                startZeitMin += spieldauer;
+                for (Spieler s : pausierer) {
+                    pausenBox.getChildren().add(new Label(s.getName()));
+                }
             }
+            spielplanGrid.add(pausenBox, anzahlPlaetze + 1, rowIdx);
+
+            rundenZeit = rundenZeit.plusMinutes((long) spieldauer + pausenlaenge);
         }
     }
 
-    private void updateMatchResult(Match match, TextField tfTeam1, TextField tfTeam2) {
-        int newScore1 = parseScore(tfTeam1.getText());
-        int newScore2 = parseScore(tfTeam2.getText());
+    private VBox createMatchCard(Match match) {
+        VBox team1Box = createTeamBox(match.getTeam1(), Pos.CENTER_LEFT);
+        VBox team2Box = createTeamBox(match.getTeam2(), Pos.CENTER_RIGHT);
+        Label vsLabel = new Label("vs");
+        vsLabel.getStyleClass().add("vs-label");
+        HBox teamsRow = new HBox(0, team1Box, vsLabel, team2Box);
+        teamsRow.setAlignment(Pos.CENTER);
+        HBox.setHgrow(team1Box, Priority.ALWAYS);
+        HBox.setHgrow(team2Box, Priority.ALWAYS);
 
-        MatchResult oldResult = match.getResult();
-        if (oldResult != null) {
-            scoreboardMap.put(
-                    match.getTeam1().getSpieler1(),
-                    scoreboardMap.getOrDefault(match.getTeam1().getSpieler1(), 0) - oldResult.getTeam1Score());
-            scoreboardMap.put(
-                    match.getTeam1().getSpieler2(),
-                    scoreboardMap.getOrDefault(match.getTeam1().getSpieler2(), 0) - oldResult.getTeam1Score());
-            scoreboardMap.put(
-                    match.getTeam2().getSpieler1(),
-                    scoreboardMap.getOrDefault(match.getTeam2().getSpieler1(), 0) - oldResult.getTeam2Score());
-            scoreboardMap.put(
-                    match.getTeam2().getSpieler2(),
-                    scoreboardMap.getOrDefault(match.getTeam2().getSpieler2(), 0) - oldResult.getTeam2Score());
-        }
+        TextField tfTeam1 = new TextField("0");
+        tfTeam1.setPrefWidth(50);
+        TextField tfTeam2 = new TextField("0");
+        tfTeam2.setPrefWidth(50);
+        AtomicReference<MatchResult> oldResultRef = new AtomicReference<>(match.getResult());
+        Runnable scoreUpdater = () -> {
+            if (oldResultRef.get() != null) {
+                updateScore(match.getTeam1(), -oldResultRef.get().getTeam1Score());
+                updateScore(match.getTeam2(), -oldResultRef.get().getTeam2Score());
+            }
+            int newScore1 = parseScore(tfTeam1.getText());
+            int newScore2 = parseScore(tfTeam2.getText());
+            MatchResult newResult = new MatchResult(newScore1, newScore2);
+            match.setResult(newResult);
+            oldResultRef.set(newResult);
+            updateScore(match.getTeam1(), newScore1);
+            updateScore(match.getTeam2(), newScore2);
+            updateRanglisteUI();
+        };
+        tfTeam1.textProperty().addListener((obs, ov, nv) -> scoreUpdater.run());
+        tfTeam2.textProperty().addListener((obs, ov, nv) -> scoreUpdater.run());
+        HBox scoreBox = new HBox(5, tfTeam1, new Label(":"), tfTeam2);
+        scoreBox.setAlignment(Pos.CENTER);
 
-        MatchResult result = new MatchResult(newScore1, newScore2);
-        match.setResult(result);
-
-        scoreboardMap.put(
-                match.getTeam1().getSpieler1(),
-                scoreboardMap.getOrDefault(match.getTeam1().getSpieler1(), 0) + newScore1);
-        scoreboardMap.put(
-                match.getTeam1().getSpieler2(),
-                scoreboardMap.getOrDefault(match.getTeam1().getSpieler2(), 0) + newScore1);
-        scoreboardMap.put(
-                match.getTeam2().getSpieler1(),
-                scoreboardMap.getOrDefault(match.getTeam2().getSpieler1(), 0) + newScore2);
-        scoreboardMap.put(
-                match.getTeam2().getSpieler2(),
-                scoreboardMap.getOrDefault(match.getTeam2().getSpieler2(), 0) + newScore2);
-
-        updateRanglisteUI();
-        updateStatus("Match-Ergebnis aktualisiert: " + match.toString(), "info-label");
+        VBox card = new VBox(10, teamsRow, scoreBox);
+        card.getStyleClass().add("match-card");
+        return card;
     }
 
-    private int parseScore(String txt) {
+    private VBox createTeamBox(Team team, Pos alignment) {
+        Node p1 = createPlayerLabel(team.getSpieler1(), alignment);
+        Node p2 = createPlayerLabel(team.getSpieler2(), alignment);
+        VBox teamBox = new VBox(2, p1, p2);
+        teamBox.setAlignment(alignment);
+        teamBox.getStyleClass().add("team-box");
+        return teamBox;
+    }
+
+    private VBox createPlayerLabel(Spieler spieler, Pos alignment) {
+        Label nameLabel = new Label(spieler.getName());
+        nameLabel.getStyleClass().add("player-name-label");
+        nameLabel.setWrapText(true);
+
+        Label skillLabel = new Label("Stärke: " + spieler.getSpielstaerke());
+        skillLabel.getStyleClass().add("player-skill-label");
+
+        VBox playerBox = new VBox(0, nameLabel, skillLabel);
+        if (alignment == Pos.CENTER_RIGHT) {
+            playerBox.setAlignment(Pos.CENTER_RIGHT);
+        } else {
+            playerBox.setAlignment(Pos.CENTER_LEFT);
+        }
+        return playerBox;
+    }
+
+    private void updateScore(Team team, int points) {
+        scoreboardMap.merge(team.getSpieler1(), points, Integer::sum);
+        scoreboardMap.merge(team.getSpieler2(), points, Integer::sum);
+    }
+
+    private int parseScore(String text) {
         try {
-            return Integer.parseInt(txt.trim());
+            return Integer.parseInt(text.trim());
         } catch (NumberFormatException e) {
             return 0;
         }
     }
 
-    // RANGLISTE
+    private Label createHeaderLabel(String text) {
+        Label lbl = new Label(text);
+        lbl.getStyleClass().add("grid-header");
+        return lbl;
+    }
+
     private void updateRanglisteUI() {
         if (ranglistenVBox == null) return;
         ranglistenVBox.getChildren().clear();
-
-        List<Map.Entry<Spieler, Integer>> sorted = new ArrayList<>(scoreboardMap.entrySet());
-        sorted.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-
+        List<Map.Entry<Spieler, Integer>> sortedList = new ArrayList<>(scoreboardMap.entrySet());
+        sortedList.sort(Map.Entry.<Spieler, Integer>comparingByValue().reversed());
         int rank = 1;
-        for (Map.Entry<Spieler, Integer> e : sorted) {
-            Spieler sp = e.getKey();
-            int pts = e.getValue();
-
-            HBox row = new HBox(5);
+        for (Map.Entry<Spieler, Integer> entry : sortedList) {
+            Label rankLabel = new Label(rank + ".");
+            rankLabel.getStyleClass().add("rank-label");
+            Label nameLabel = new Label(entry.getKey().getName());
+            nameLabel.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(nameLabel, Priority.ALWAYS);
+            Label pointsLabel = new Label(entry.getValue() + " Pkt.");
+            pointsLabel.getStyleClass().add("points-label");
+            HBox row = new HBox(10, rankLabel, nameLabel, pointsLabel);
+            row.setAlignment(Pos.CENTER_LEFT);
             row.getStyleClass().add("ranglisten-item");
-
-            if (rank == 1) {
-                row.getStyleClass().add("ranglisten-item-first");
-            } else if (rank == 2) {
-                row.getStyleClass().add("ranglisten-item-second");
-            } else if (rank == 3) {
-                row.getStyleClass().add("ranglisten-item-third");
-            }
-
-            row.setOpacity(0);
-
-            Label lblRank = new Label(rank + ".");
-            lblRank.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
-
-            Label lblName = new Label(sp.getName());
-            lblName.setStyle("-fx-text-fill: #2c3e50; -fx-font-size: 14; -fx-font-weight: bold;");
-
-            // Anzeige der Spielstärke in der Rangliste
-            Label lblStrength = new Label("(Stärke: " + sp.getSpielstaerke() + ")");
-            lblStrength.setStyle("-fx-text-fill: #34495e; -fx-font-size: 12;");
-
-            Label lblPoints = new Label("(" + pts + " Punkte)");
-            lblPoints.setStyle("-fx-text-fill: #34495e; -fx-font-size: 12;");
-
-            row.getChildren().addAll(lblRank, lblName, lblStrength, lblPoints);
+            if (rank == 1) row.getStyleClass().add("rank-first");
+            else if (rank == 2) row.getStyleClass().add("rank-second");
+            else if (rank == 3) row.getStyleClass().add("rank-third");
             ranglistenVBox.getChildren().add(row);
-
-            FadeTransition fadeIn = new FadeTransition(Duration.millis(200), row);
-            fadeIn.setFromValue(0);
-            fadeIn.setToValue(1);
-            fadeIn.setInterpolator(Interpolator.EASE_OUT);
-
-            TranslateTransition slideIn = new TranslateTransition(Duration.millis(200), row);
-            slideIn.setFromX(-50);
-            slideIn.setToX(0);
-            slideIn.setInterpolator(Interpolator.EASE_OUT);
-
-            ParallelTransition parallel = new ParallelTransition(fadeIn, slideIn);
-            parallel.play();
-
             rank++;
-        }
-    }
-
-    private void exportToCSV() {
-        if (aktuellesTurnier == null) {
-            showErrorAlert("Kein Turnier zum Export!");
-            updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
-            return;
-        }
-
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("CSV speichern");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV-Datei", "*.csv"));
-        File f = fileChooser.showSaveDialog(primary);
-        if (f == null) {
-            updateStatus("Export abgebrochen.", "info-label");
-            return;
-        }
-
-        try (PrintWriter pw = new PrintWriter(new FileWriter(f))) {
-            int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
-            int rundenAnzahl = aktuellesTurnier.getRundenAnzahl();
-
-            // Header
-            StringBuilder header = new StringBuilder("Zeit");
-            for (int p = 1; p <= anzahlPlaetze; p++) {
-                header.append(";Platz ").append(p);
-            }
-            header.append(";Pausierende Spieler");
-            pw.println(header);
-
-            int startZeitMin = startTime.toSecondOfDay() / 60;
-            for (int r = 0; r < rundenAnzahl; r++) {
-                Runde ru = aktuellesTurnier.getRunden().get(r);
-                List<Match> spiele = ru.getSpiele();
-
-                String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
-                StringBuilder row = new StringBuilder(zeit);
-                for (int p = 0; p < anzahlPlaetze; p++) {
-                    row.append(";");
-                    row.append(p < spiele.size() ? spiele.get(p).toString() : "-");
-                }
-
-                // Pausen-Spalte
-                List<Spieler> paused = pausenProRunde.get(r);
-                if (paused.isEmpty()) {
-                    row.append(";-");
-                } else {
-                    String pausedNames = String.join(", ", paused.stream().map(Spieler::getName).toList());
-                    row.append(";").append(pausedNames);
-                }
-
-                pw.println(row);
-
-                // Zeit erhöhen
-                startZeitMin += (pausenlaenge > 0 ? spieldauer + pausenlaenge : spieldauer);
-            }
-
-            pw.flush();
-            Alert ok = new Alert(AlertType.INFORMATION,
-                    "CSV Export erfolgreich:\n" + f.getAbsolutePath(),
-                    ButtonType.OK);
-            ok.showAndWait();
-
-            updateStatus("CSV Export erfolgreich: " + f.getAbsolutePath(), "success-label");
-        } catch (IOException ex) {
-            showErrorAlert("Fehler beim CSV Export: " + ex.getMessage());
-            updateStatus("Fehler beim CSV Export.", "error-label");
         }
     }
 
     private void exportToExcel() {
         if (aktuellesTurnier == null) {
-            showErrorAlert("Kein Turnier zum Export!");
-            updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
+            showErrorAlert("Es gibt keinen Turnierplan zum Exportieren.");
             return;
         }
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Excel Turnierplan speichern");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
-        File f = fileChooser.showSaveDialog(primary);
-        if (f == null) {
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file == null) {
             updateStatus("Export abgebrochen.", "info-label");
             return;
         }
         try (Workbook wb = new XSSFWorkbook()) {
-            Sheet sheet = wb.createSheet("Turnierplan");
+            Sheet paramSheet = wb.createSheet("Parameter");
+            paramSheet.createRow(0).createCell(0).setCellValue("Anzahl Plätze");
+            paramSheet.getRow(0).createCell(1).setCellValue(plaetzeField.getText());
+            paramSheet.createRow(1).createCell(0).setCellValue("Anzahl Runden");
+            paramSheet.getRow(1).createCell(1).setCellValue(rundenField.getText());
+            paramSheet.createRow(2).createCell(0).setCellValue("Startzeit");
+            paramSheet.getRow(2).createCell(1).setCellValue(startzeitField.getText());
+            paramSheet.createRow(3).createCell(0).setCellValue("Spieldauer");
+            paramSheet.getRow(3).createCell(1).setCellValue(spieldauerField.getText());
+            paramSheet.createRow(4).createCell(0).setCellValue("Pausenlänge");
+            paramSheet.getRow(4).createCell(1).setCellValue(pausenlaengeField.getText());
 
-            // Header-Style
-            CellStyle headerStyle = wb.createCellStyle();
-            Font headerFont = wb.createFont();
-            headerFont.setBold(true);
-            headerFont.setColor(IndexedColors.WHITE.getIndex());
-            headerStyle.setFont(headerFont);
-            headerStyle.setAlignment(HorizontalAlignment.CENTER);
-            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
-            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            headerStyle.setBorderBottom(BorderStyle.THIN);
-            headerStyle.setBorderTop(BorderStyle.THIN);
-            headerStyle.setBorderLeft(BorderStyle.THIN);
-            headerStyle.setBorderRight(BorderStyle.THIN);
-
-            // Zeit-Style
-            CellStyle timeStyle = wb.createCellStyle();
-            timeStyle.setAlignment(HorizontalAlignment.CENTER);
-            timeStyle.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
-            timeStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            timeStyle.setBorderBottom(BorderStyle.THIN);
-            timeStyle.setBorderTop(BorderStyle.THIN);
-            timeStyle.setBorderLeft(BorderStyle.THIN);
-            timeStyle.setBorderRight(BorderStyle.THIN);
-
-            // Match-Style
-            CellStyle matchStyle = wb.createCellStyle();
-            matchStyle.setAlignment(HorizontalAlignment.CENTER);
-            matchStyle.setWrapText(true);
-            matchStyle.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
-            matchStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            matchStyle.setBorderBottom(BorderStyle.THIN);
-            matchStyle.setBorderTop(BorderStyle.THIN);
-            matchStyle.setBorderLeft(BorderStyle.THIN);
-            matchStyle.setBorderRight(BorderStyle.THIN);
-
-            // Pause-Style
-            CellStyle pauseStyle = wb.createCellStyle();
-            pauseStyle.setAlignment(HorizontalAlignment.CENTER);
-            pauseStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
-            pauseStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            pauseStyle.setBorderBottom(BorderStyle.THIN);
-            pauseStyle.setBorderTop(BorderStyle.THIN);
-            pauseStyle.setBorderLeft(BorderStyle.THIN);
-            pauseStyle.setBorderRight(BorderStyle.THIN);
-
-            int anzahlPlaetze = aktuellesTurnier.getAnzahlPlaetze();
-            int rundenAnzahl = aktuellesTurnier.getRundenAnzahl();
-
-            // Kopfzeile: Zeit, Platz 1 .. Platz N, Pausierende Spieler
-            Row headerRow = sheet.createRow(0);
-            Cell cell = headerRow.createCell(0);
-            cell.setCellValue("Zeit");
-            cell.setCellStyle(headerStyle);
-            for (int p = 1; p <= anzahlPlaetze; p++) {
-                cell = headerRow.createCell(p);
-                cell.setCellValue("Platz " + p);
-                cell.setCellStyle(headerStyle);
+            Sheet spielerSheet = wb.createSheet("Spieler");
+            Row spielerHeader = spielerSheet.createRow(0);
+            spielerHeader.createCell(0).setCellValue("Name");
+            spielerHeader.createCell(1).setCellValue("Geschlecht");
+            spielerHeader.createCell(2).setCellValue("Spielstärke");
+            for (int i = 0; i < spielerListe.size(); i++) {
+                Row row = spielerSheet.createRow(i + 1);
+                Spieler s = spielerListe.get(i);
+                row.createCell(0).setCellValue(s.getName());
+                row.createCell(1).setCellValue(s.getGeschlecht());
+                row.createCell(2).setCellValue(s.getSpielstaerke());
             }
-            cell = headerRow.createCell(anzahlPlaetze + 1);
-            cell.setCellValue("Pausierende Spieler");
-            cell.setCellStyle(headerStyle);
 
-            int startZeitMin = startTime.toSecondOfDay() / 60;
-            int rowIndex = 1;
-            for (int r = 0; r < rundenAnzahl; r++) {
-                // Zeile für Matches
-                Row matchRow = sheet.createRow(rowIndex++);
-                String zeit = String.format("%02d:%02d", startZeitMin / 60, startZeitMin % 60);
-                cell = matchRow.createCell(0);
-                cell.setCellValue(zeit);
-                cell.setCellStyle(timeStyle);
-                Runde ru = aktuellesTurnier.getRunden().get(r);
-                List<Match> spiele = ru.getSpiele();
-                for (int p = 0; p < anzahlPlaetze; p++) {
-                    cell = matchRow.createCell(p + 1);
-                    if (p < spiele.size()) {
-                        cell.setCellValue(spiele.get(p).toString());
-                    } else {
-                        cell.setCellValue("-");
-                    }
-                    cell.setCellStyle(matchStyle);
-                }
-                // Letzte Spalte: Pausierende
-                List<Spieler> paused = pausenProRunde.get(r);
-                StringBuilder sb = new StringBuilder();
-                for (Spieler sp : paused) {
-                    sb.append(sp.getName()).append(", ");
-                }
-                if (sb.length() > 1) sb.setLength(sb.length() - 2);
-                cell = matchRow.createCell(anzahlPlaetze + 1);
-                cell.setCellValue(sb.toString());
-                cell.setCellStyle(matchStyle);
+            wb.createSheet("Turnierplan");
 
-                // Zeile für Pausenzeile optisch (optional)
-                Row pauseRow = sheet.createRow(rowIndex++);
-                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(
-                        pauseRow.getRowNum(), pauseRow.getRowNum(), 0, anzahlPlaetze + 1));
-                cell = pauseRow.createCell(0);
-                cell.setCellValue(pausenlaenge > 0 ? "Pause: " + pausenlaenge + " Min" : "—");
-                cell.setCellStyle(pauseStyle);
-
-                // Update der Startzeit
-                startZeitMin += (pausenlaenge > 0 ? spieldauer + pausenlaenge : spieldauer);
-            }
-            for (int col = 0; col <= anzahlPlaetze + 1; col++) {
-                sheet.autoSizeColumn(col);
-            }
-            try (FileOutputStream fos = new FileOutputStream(f)) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
                 wb.write(fos);
             }
-            Alert alert = new Alert(AlertType.INFORMATION,
-                    "Excel Export erfolgreich:\n" + f.getAbsolutePath(),
-                    ButtonType.OK);
-            alert.showAndWait();
-            updateStatus("Excel Export erfolgreich: " + f.getAbsolutePath(), "success-label");
-        } catch (IOException ex) {
-            showErrorAlert("Fehler beim Excel Export: " + ex.getMessage());
-            updateStatus("Fehler beim Excel Export.", "error-label");
+            updateStatus("Turnier erfolgreich nach '" + file.getName() + "' exportiert.", "success-label");
+        } catch (IOException e) {
+            showErrorAlert("Fehler beim Exportieren der Excel-Datei: " + e.getMessage());
+            updateStatus("Export fehlgeschlagen.", "error-label");
         }
     }
 
-    private void exportTurnierergebnisseToExcel() {
-        if (aktuellesTurnier == null) {
-            showErrorAlert("Kein Turnier zum Export!");
-            updateStatus("Fehler: Kein Turnier zum Exportieren.", "error-label");
-            return;
-        }
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Excel Turnierergebnisse speichern");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel-Datei", "*.xlsx"));
-        File f = fileChooser.showSaveDialog(primary);
-        if (f == null) {
-            updateStatus("Export abgebrochen.", "info-label");
-            return;
-        }
-        try (Workbook wb = new XSSFWorkbook()) {
-            // Sheet 1: Rangliste
-            Sheet sheetRanking = wb.createSheet("Rangliste");
-            CellStyle headerStyle = wb.createCellStyle();
-            Font headerFont = wb.createFont();
-            headerFont.setBold(true);
-            headerFont.setColor(IndexedColors.WHITE.getIndex());
-            headerStyle.setFont(headerFont);
-            headerStyle.setAlignment(HorizontalAlignment.CENTER);
-            headerStyle.setFillForegroundColor(IndexedColors.DARK_GREEN.getIndex());
-            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            headerStyle.setBorderBottom(BorderStyle.THIN);
-            headerStyle.setBorderTop(BorderStyle.THIN);
-            headerStyle.setBorderLeft(BorderStyle.THIN);
-            headerStyle.setBorderRight(BorderStyle.THIN);
-
-            Row headerRow = sheetRanking.createRow(0);
-            Cell cell = headerRow.createCell(0);
-            cell.setCellValue("Rang");
-            cell.setCellStyle(headerStyle);
-            cell = headerRow.createCell(1);
-            cell.setCellValue("Spieler");
-            cell.setCellStyle(headerStyle);
-            cell = headerRow.createCell(2);
-            cell.setCellValue("Spielstärke");
-            cell.setCellStyle(headerStyle);
-            cell = headerRow.createCell(3);
-            cell.setCellValue("Punkte");
-            cell.setCellStyle(headerStyle);
-
-            // Sortiere scoreboardMap absteigend nach Punkten
-            List<Map.Entry<Spieler, Integer>> ranking = new ArrayList<>(scoreboardMap.entrySet());
-            ranking.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-            int rowIndex = 1;
-            for (Map.Entry<Spieler, Integer> entry : ranking) {
-                Row row = sheetRanking.createRow(rowIndex);
-                row.createCell(0).setCellValue(rowIndex);
-                row.createCell(1).setCellValue(entry.getKey().getName());
-                row.createCell(2).setCellValue(entry.getKey().getSpielstaerke());
-                row.createCell(3).setCellValue(entry.getValue());
-                rowIndex++;
-            }
-            for (int i = 0; i < 4; i++) {
-                sheetRanking.autoSizeColumn(i);
-            }
-
-            // Sheet 2: Statistiken
-            Sheet sheetStats = wb.createSheet("Statistiken");
-            int totalMatches = 0;
-            for (Runde r : aktuellesTurnier.getRunden()) {
-                totalMatches += r.getSpiele().size();
-            }
-            Row statRow1 = sheetStats.createRow(0);
-            statRow1.createCell(0).setCellValue("Gesamtspieler");
-            statRow1.createCell(1).setCellValue(spielerListe.size());
-            Row statRow2 = sheetStats.createRow(1);
-            statRow2.createCell(0).setCellValue("Gesamtrunden");
-            statRow2.createCell(1).setCellValue(aktuellesTurnier.getRundenAnzahl());
-            Row statRow3 = sheetStats.createRow(2);
-            statRow3.createCell(0).setCellValue("Gesamtmatches");
-            statRow3.createCell(1).setCellValue(totalMatches);
-
-            sheetStats.autoSizeColumn(0);
-            sheetStats.autoSizeColumn(1);
-
-            try (FileOutputStream fos = new FileOutputStream(f)) {
-                wb.write(fos);
-            }
-            Alert alert = new Alert(AlertType.INFORMATION,
-                    "Excel Export (Turnierergebnisse) erfolgreich:\n" + f.getAbsolutePath(),
-                    ButtonType.OK);
-            alert.showAndWait();
-            updateStatus("Excel Export (Turnierergebnisse) erfolgreich: " + f.getAbsolutePath(), "success-label");
-        } catch (IOException ex) {
-            showErrorAlert("Fehler beim Excel Export (Turnierergebnisse): " + ex.getMessage());
-            updateStatus("Fehler beim Excel Export (Turnierergebnisse).", "error-label");
-        }
-    }
-
-    // EXTRAS
-    private void zeigeZusammenfassung() {
-        if (aktuellesTurnier == null) {
-            showErrorAlert("Es wurde noch kein Turnier erstellt!");
-            updateStatus("Fehler: Kein Turnier erstellt.", "error-label");
-            return;
-        }
-        int spielerCount = spielerListe.size();
-        int rundenCount = aktuellesTurnier.getRundenAnzahl();
-        int plaetzeCount = aktuellesTurnier.getAnzahlPlaetze();
-
-        int matchesTotal = 0;
-        for (Runde r : aktuellesTurnier.getRunden()) {
-            matchesTotal += r.getSpiele().size();
-        }
-
-        Alert info = new Alert(AlertType.INFORMATION,
-                "Spieleranzahl: " + spielerCount + "\n"
-                        + "Plätze: " + plaetzeCount + "\n"
-                        + "Runden: " + rundenCount + "\n"
-                        + "Gesamt-Matches: " + matchesTotal,
-                ButtonType.OK);
-        info.setHeaderText("Turnier-Übersicht");
-        info.setTitle("Zusammenfassung");
-
-        URL cssUrl = getClass().getResource("/com/example/roundrobintunier/styles.css");
-        if (cssUrl != null) {
-            info.getDialogPane().getStylesheets().add(cssUrl.toExternalForm());
-            info.getDialogPane().getStyleClass().add("fancy-dialog-pane");
-        }
-        info.showAndWait();
-        updateStatus("Zusammenfassung angezeigt.", "info-label");
-    }
-
-    private void zeigeInfo() {
-        Alert info = new Alert(AlertType.INFORMATION,
-                "Round Robin Planer – Großzügiges Layout, Korrektes Punktesystem.\n"
-                        + "Keine überlappenden Punkte mehr, High-Level UI.\n"
-                        + "Rangliste + Export.\n© 2025 Carlo Deutschmann",
-                ButtonType.OK);
-        info.setHeaderText("Info");
-        info.setTitle("Hilfe");
-
-        URL cssUrl = getClass().getResource("/com/example/roundrobintunier/styles.css");
-        if (cssUrl != null) {
-            info.getDialogPane().getStylesheets().add(cssUrl.toExternalForm());
-            info.getDialogPane().getStyleClass().add("fancy-dialog-pane");
-        }
-        info.showAndWait();
-    }
-
-    // DRUCKEN
     private void printPlan() {
-        if (spielplanGrid == null) {
-            showErrorAlert("Nichts zu drucken.");
+        if (spielplanGrid.getChildren().isEmpty()) {
+            showErrorAlert("Kein Turnierplan zum Drucken vorhanden.");
             return;
         }
         PrinterJob job = PrinterJob.createPrinterJob();
-        if (job == null) {
-            showErrorAlert("Kein Druckerjob verfügbar.");
-            return;
-        }
-        boolean proceed = job.showPrintDialog(primary);
-        if (!proceed) {
-            updateStatus("Druck abgebrochen.", "info-label");
-            return;
-        }
-        // Optional leicht skalieren
-        double oldX = spielplanGrid.getScaleX();
-        double oldY = spielplanGrid.getScaleY();
-        spielplanGrid.setScaleX(0.9);
-        spielplanGrid.setScaleY(0.9);
-
-        boolean success = job.printPage(spielplanGrid);
-
-        // zurücksetzen
-        spielplanGrid.setScaleX(oldX);
-        spielplanGrid.setScaleY(oldY);
-
-        if (success) {
-            job.endJob();
-            updateStatus("Druck erfolgreich.", "success-label");
+        if (job != null && job.showPrintDialog(primaryStage)) {
+            boolean success = job.printPage(spielplanGrid);
+            if (success) {
+                job.endJob();
+                updateStatus("Druckauftrag gesendet.", "success-label");
+            } else {
+                updateStatus("Drucken fehlgeschlagen.", "error-label");
+            }
         } else {
-            showErrorAlert("Drucken fehlgeschlagen.");
-            updateStatus("Drucken fehlgeschlagen.", "error-label");
+            updateStatus("Drucken abgebrochen.", "info-label");
         }
     }
 
-    // ANIMATIONEN
-    private void demoFadeEffect(Button node) {
-        FadeTransition ft = new FadeTransition(Duration.millis(300), node);
-        ft.setFromValue(1.0);
-        ft.setToValue(0.3);
-        ft.setCycleCount(2);
-        ft.setAutoReverse(true);
-        ft.play();
-    }
-
-    private void shakeNode(javafx.scene.Node node) {
-        TranslateTransition tt = new TranslateTransition(Duration.millis(60), node);
-        tt.setFromX(0);
-        tt.setByX(10);
-        tt.setCycleCount(6);
-        tt.setAutoReverse(true);
-        tt.setOnFinished(e -> node.setTranslateX(0));
-        tt.play();
-    }
-
-    // DARK MODE
-    private void toggleDarkMode(boolean isDark) {
-        Scene scene = nameField.getScene();
-        if (scene == null) return;
-
-        scene.getStylesheets().clear();
-        if (isDark) {
-            scene.getStylesheets().add(getClass().getResource("/com/example/roundrobintunier/styles_dark.css").toExternalForm());
-            updateStatus("Dark Mode aktiviert.", "info-label");
-        } else {
-            scene.getStylesheets().add(getClass().getResource("/com/example/roundrobintunier/styles.css").toExternalForm());
-            updateStatus("Light Mode aktiviert.", "info-label");
-        }
-    }
-
-    // HILFSMETHODEN
     private void showErrorAlert(String msg) {
         Alert alert = new Alert(AlertType.ERROR, msg, ButtonType.OK);
-        alert.setHeaderText("Fehler");
+        alert.setHeaderText(null);
         alert.setTitle("Fehler");
         alert.showAndWait();
     }
 
     private void updateStatus(String message, String styleClass) {
         statusLabel.setText(message);
-        statusLabel.getStyleClass().removeAll("error-label", "info-label", "success-label");
-        statusLabel.getStyleClass().add(styleClass);
+        statusLabel.getStyleClass().setAll("status-label", styleClass);
     }
 
     public static void main(String[] args) {

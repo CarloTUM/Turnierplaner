@@ -49,4 +49,10 @@ public class Spieler {
     public String toString() {
         return name + " (Stärke: " + spielstaerke + ")";
     }
+    public void resetStats() {
+        this.resetPausenAnzahl();
+        this.resetSpielAnzahl();
+        this.resetPartnerHistorie();
+        this.resetGegnerHistorie();
+    }
 }

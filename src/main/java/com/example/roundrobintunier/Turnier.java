@@ -3,6 +3,10 @@ package com.example.roundrobintunier;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Eine reine Datenklasse, die ein erstelltes Turnier repräsentiert.
+ * Die Logik zur Erstellung des Plans befindet sich in der App-Klasse.
+ */
 public class Turnier {
     private final List<Spieler> spielerListe;
     private final int anzahlPlaetze;
@@ -13,35 +17,23 @@ public class Turnier {
         this.spielerListe = new ArrayList<>(spielerListe);
         this.anzahlPlaetze = anzahlPlaetze;
         this.rundenAnzahl = rundenAnzahl;
-        this.runden = new ArrayList<>();
+        this.runden = new ArrayList<>(); // Runden werden von außen hinzugefügt
     }
 
-    public List<Spieler> getSpielerListe() { return spielerListe; }
-    public int getAnzahlPlaetze() { return anzahlPlaetze; }
-    public int getRundenAnzahl() { return rundenAnzahl; }
-    public List<Runde> getRunden() { return runden; }
-
-    /** Erzeugt den Turnierplan. */
-    public void turnierPlanErstellen() {
-        PausenManager pausenManager = new PausenManager(this.spielerListe, this.rundenAnzahl, this.anzahlPlaetze);
-        List<List<Spieler>> rundenPlan = pausenManager.planeRunden();
-
-        TournamentSolver solver = new TournamentSolver();
-        for (int i = 0; i < rundenPlan.size(); i++) {
-            List<Spieler> spielerInRunde = rundenPlan.get(i);
-            Runde optimiert = solver.solveRunde(i + 1, spielerInRunde);
-            if (optimiert != null) {
-                this.runden.add(optimiert);
-            } else {
-                System.out.println("Keine gültige Planung für Runde " + (i + 1) + " gefunden.");
-            }
-        }
+    // Getter-Methoden bleiben unverändert
+    public List<Spieler> getSpielerListe() {
+        return spielerListe;
     }
 
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        for (Runde r : runden) sb.append(r).append("\n");
-        return sb.toString();
+    public int getAnzahlPlaetze() {
+        return anzahlPlaetze;
+    }
+
+    public int getRundenAnzahl() {
+        return rundenAnzahl;
+    }
+
+    public List<Runde> getRunden() {
+        return runden;
     }
 }
